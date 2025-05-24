@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { ChangeEvent, FormEvent } from 'react';
@@ -29,6 +30,7 @@ import type { EventType } from '@/types/event';
 import { useToast } from '@/hooks/use-toast';
 import { enrichEventTitle } from '@/ai/flows/enrich-event-title';
 import { Wand2, Trash2, Save, Loader2 } from 'lucide-react';
+import { startOfDay, endOfDay, format } from '@/lib/calendar-utils';
 
 interface EventModalProps {
   isOpen: boolean;
@@ -38,7 +40,7 @@ interface EventModalProps {
   onDelete?: (eventId: string) => void;
 }
 
-const defaultColor = 'hsl(var(--primary))'; // Default to primary color
+const defaultColor = 'hsl(var(--primary))';
 
 export function EventModal({
   isOpen,
@@ -48,16 +50,17 @@ export function EventModal({
   onDelete,
 }: EventModalProps) {
   const [name, setName] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [startTime, setStartTime] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [endTime, setEndTime] = useState('');
+  const [startDateString, setStartDateString] = useState('');
+  const [endDateString, setEndDateString] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(defaultColor);
   const [currentId, setCurrentId] = useState<string | undefined>(undefined);
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
 
+  const formatDateForInput = (date: Date): string => {
+    return format(date, 'yyyy-MM-dd');
+  };
 
   useEffect(() => {
     if (eventData) {
@@ -65,25 +68,21 @@ export function EventModal({
       setName(eventData.name || '');
       
       const start = eventData.startDate ? new Date(eventData.startDate) : new Date();
-      setStartDate(start.toISOString().split('T')[0]);
-      setStartTime(start.toTimeString().substring(0, 5));
+      setStartDateString(formatDateForInput(start));
 
-      const end = eventData.endDate ? new Date(eventData.endDate) : new Date(start.getTime() + 3600000); // Default 1 hour duration
-      setEndDate(end.toISOString().split('T')[0]);
-      setEndTime(end.toTimeString().substring(0, 5));
+      // Default end date to same day as start if not provided or if it's an old event before endOfDay logic
+      const end = eventData.endDate ? new Date(eventData.endDate) : start;
+      setEndDateString(formatDateForInput(end));
       
       setDescription(eventData.description || '');
       setColor(eventData.color || defaultColor);
     } else {
-      // New event, default to now + 1 hour
+      // New event, default to today
       const now = new Date();
-      const oneHourLater = new Date(now.getTime() + 3600000);
       setCurrentId(undefined);
       setName('');
-      setStartDate(now.toISOString().split('T')[0]);
-      setStartTime(now.toTimeString().substring(0, 5));
-      setEndDate(oneHourLater.toISOString().split('T')[0]);
-      setEndTime(oneHourLater.toTimeString().substring(0, 5));
+      setStartDateString(formatDateForInput(now));
+      setEndDateString(formatDateForInput(now)); // Default end date is same as start for a new task
       setDescription('');
       setColor(defaultColor);
     }
@@ -92,22 +91,23 @@ export function EventModal({
   const handleSave = (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      toast({ title: "Error de Validación", description: "El nombre del evento es obligatorio.", variant: "destructive" });
+      toast({ title: "Error de Validación", description: "El nombre de la tarea es obligatorio.", variant: "destructive" });
       return;
     }
 
-    const combinedStartDate = new Date(`${startDate}T${startTime}`);
-    const combinedEndDate = new Date(`${endDate}T${endTime}`);
+    const finalStartDate = startOfDay(new Date(startDateString + 'T00:00:00')); // Ensure time is start of day in local timezone
+    const finalEndDate = endOfDay(new Date(endDateString + 'T00:00:00')); // Ensure time is end of day in local timezone
 
-    if (combinedEndDate < combinedStartDate) {
+
+    if (finalEndDate < finalStartDate) {
       toast({ title: "Error de Validación", description: "La fecha de fin no puede ser anterior a la fecha de inicio.", variant: "destructive" });
       return;
     }
     
     const eventToSave: Omit<EventType, 'id'> & { id?: string } = {
       name,
-      startDate: combinedStartDate,
-      endDate: combinedEndDate,
+      startDate: finalStartDate,
+      endDate: finalEndDate,
       description,
       color,
     };
@@ -130,11 +130,11 @@ export function EventModal({
     }
     startTransition(async () => {
       try {
-        const combinedStartDate = new Date(`${startDate}T${startTime}`);
+        const taskStartDate = startOfDay(new Date(startDateString));
         const result = await enrichEventTitle({
           title: name,
           description: description,
-          startDate: combinedStartDate,
+          startDate: taskStartDate,
         });
         if (result.enrichedTitle) {
           setName(result.enrichedTitle);
@@ -160,19 +160,19 @@ export function EventModal({
       <DialogContent className="sm:max-w-[480px] shadow-xl rounded-lg">
         <DialogHeader>
           <DialogTitle className="text-2xl font-semibold">
-            {currentId ? 'Editar Evento' : 'Añadir Nuevo Evento'}
+            {currentId ? 'Editar Tarea' : 'Añadir Nueva Tarea'}
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSave}>
           <div className="grid gap-6 py-6 px-2">
             <div className="grid gap-3">
-              <Label htmlFor="name" className="text-sm font-medium">Nombre del Evento</Label>
+              <Label htmlFor="name" className="text-sm font-medium">Nombre de la Tarea</Label>
               <div className="flex items-center gap-2">
                 <Input
                   id="name"
                   value={name}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
-                  placeholder="Ej: Reunión de equipo"
+                  placeholder="Ej: Comprar víveres"
                   className="flex-grow"
                   required
                 />
@@ -185,22 +185,11 @@ export function EventModal({
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-3">
                 <Label htmlFor="start-date" className="text-sm font-medium">Fecha de Inicio</Label>
-                <Input id="start-date" type="date" value={startDate} onChange={(e: ChangeEvent<HTMLInputElement>) => setStartDate(e.target.value)} required />
+                <Input id="start-date" type="date" value={startDateString} onChange={(e: ChangeEvent<HTMLInputElement>) => setStartDateString(e.target.value)} required />
               </div>
-              <div className="grid gap-3">
-                <Label htmlFor="start-time" className="text-sm font-medium">Hora de Inicio</Label>
-                <Input id="start-time" type="time" value={startTime} onChange={(e: ChangeEvent<HTMLInputElement>) => setStartTime(e.target.value)} required />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-3">
                 <Label htmlFor="end-date" className="text-sm font-medium">Fecha de Fin</Label>
-                <Input id="end-date" type="date" value={endDate} onChange={(e: ChangeEvent<HTMLInputElement>) => setEndDate(e.target.value)} required />
-              </div>
-              <div className="grid gap-3">
-                <Label htmlFor="end-time" className="text-sm font-medium">Hora de Fin</Label>
-                <Input id="end-time" type="time" value={endTime} onChange={(e: ChangeEvent<HTMLInputElement>) => setEndTime(e.target.value)} required />
+                <Input id="end-date" type="date" value={endDateString} onChange={(e: ChangeEvent<HTMLInputElement>) => setEndDateString(e.target.value)} required />
               </div>
             </div>
             
@@ -210,13 +199,13 @@ export function EventModal({
                 id="description"
                 value={description}
                 onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
-                placeholder="Opcional: Añade más detalles sobre el evento"
+                placeholder="Opcional: Añade más detalles sobre la tarea"
                 className="min-h-[100px]"
               />
             </div>
 
             <div className="grid gap-3">
-              <Label htmlFor="color" className="text-sm font-medium">Color del Evento</Label>
+              <Label htmlFor="color" className="text-sm font-medium">Color de la Tarea</Label>
               <div className="flex items-center gap-2">
                 <Input
                   id="color-text"
@@ -232,7 +221,7 @@ export function EventModal({
                   value={color.startsWith('#') ? color : '#000000'} // type="color" needs hex
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setColor(e.target.value)}
                   className="w-10 h-10 p-0 border-none rounded-md cursor-pointer"
-                  aria-label="Elegir color del evento"
+                  aria-label="Elegir color de la tarea"
                 />
               </div>
                <p className="text-xs text-muted-foreground">Introduce un código hexadecimal (ej: #BA68C8) o usa el selector de color.</p>
@@ -250,13 +239,13 @@ export function EventModal({
                   <AlertDialogHeader>
                     <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Esta acción no se puede deshacer. Esto eliminará permanentemente el evento.
+                      Esta acción no se puede deshacer. Esto eliminará permanentemente la tarea.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
                     <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
-                      Sí, eliminar evento
+                      Sí, eliminar tarea
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -268,7 +257,7 @@ export function EventModal({
               </Button>
             </DialogClose>
             <Button type="submit" className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground">
-              <Save className="mr-2 h-4 w-4" /> Guardar Evento
+              <Save className="mr-2 h-4 w-4" /> Guardar Tarea
             </Button>
           </DialogFooter>
         </form>

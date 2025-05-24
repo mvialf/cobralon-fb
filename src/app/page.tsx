@@ -8,7 +8,7 @@ import { EventModal } from '@/components/calendar/event-modal';
 import { CalendarToolbar } from '@/components/calendar/calendar-toolbar';
 import { mockEvents } from '@/lib/mock-data';
 import { useToast } from '@/hooks/use-toast';
-import { addHours } from '@/lib/calendar-utils';
+import { startOfDay, endOfDay } from '@/lib/calendar-utils';
 
 // Skeleton components for loading state
 const ToolbarSkeleton = () => (
@@ -44,18 +44,16 @@ export default function CalReactAppPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // This effect runs only on the client after mounting
     setIsClient(true);
     setCurrentDate(new Date());
 
-    // Ensure mockEvents dates are actual Date objects if they aren't already
     const initialEvents = mockEvents.map(event => ({
       ...event,
       startDate: new Date(event.startDate),
       endDate: new Date(event.endDate),
     }));
     setEvents(initialEvents);
-  }, []); // Empty dependency array ensures this runs once on mount
+  }, []);
 
   const filteredEvents = useMemo(() => {
     if (!filterTerm.trim()) {
@@ -87,8 +85,8 @@ export default function CalReactAppPage() {
     const now = new Date();
     setSelectedEvent({ 
       name: '',
-      startDate: now, 
-      endDate: addHours(now, 1), // Default 1 hour duration
+      startDate: startOfDay(now), 
+      endDate: endOfDay(now), 
       description: '',
       color: 'hsl(var(--primary))' 
     });
@@ -103,8 +101,8 @@ export default function CalReactAppPage() {
   const handleDayCellClick = (date: Date, viewContext: ViewOption) => {
     setSelectedEvent({
       name: '',
-      startDate: date,
-      endDate: addHours(date, 1),
+      startDate: startOfDay(date),
+      endDate: endOfDay(date),
       description: '',
       color: 'hsl(var(--primary))',
     });
@@ -114,19 +112,19 @@ export default function CalReactAppPage() {
   const handleEventDrop = (eventId: string, newStartDate: Date, newEndDate: Date) => {
     setEvents(prevEvents =>
       prevEvents.map(event =>
-        event.id === eventId ? { ...event, startDate: newStartDate, endDate: newEndDate } : event
+        event.id === eventId ? { ...event, startDate: startOfDay(newStartDate), endDate: endOfDay(newEndDate) } : event
       )
     );
-    toast({ title: "Evento Actualizado", description: "Hora del evento cambiada arrastrando y soltando." });
+    toast({ title: "Tarea Actualizada", description: "Fecha de la tarea cambiada arrastrando y soltando." });
   };
 
   const handleEventResize = (eventId: string, newStartDate: Date, newEndDate: Date) => {
      setEvents(prevEvents =>
       prevEvents.map(event =>
-        event.id === eventId ? { ...event, startDate: newStartDate, endDate: newEndDate } : event
+        event.id === eventId ? { ...event, startDate: startOfDay(newStartDate), endDate: endOfDay(newEndDate) } : event
       )
     );
-    toast({ title: "Evento Redimensionado", description: "La duración del evento ha sido actualizada." });
+    toast({ title: "Tarea Redimensionada", description: "La duración de la tarea ha sido actualizada." });
   };
 
   const handleModalClose = () => {
@@ -135,15 +133,22 @@ export default function CalReactAppPage() {
   };
 
   const handleModalSave = (eventToSave: Omit<EventType, 'id'> & { id?: string }) => {
-    if (eventToSave.id) { // Editing existing event
+    // Ensure startDate is start of day and endDate is end of day
+    const processedEvent = {
+      ...eventToSave,
+      startDate: startOfDay(eventToSave.startDate),
+      endDate: endOfDay(eventToSave.endDate),
+    };
+
+    if (processedEvent.id) { 
       setEvents(prevEvents =>
-        prevEvents.map(event => (event.id === eventToSave.id ? { ...event, ...eventToSave } : event))
+        prevEvents.map(event => (event.id === processedEvent.id ? { ...event, ...processedEvent } : event))
       );
-      toast({ title: "Evento Actualizado", description: `"${eventToSave.name}" ha sido actualizado.` });
-    } else { // Creating new event
-      const newEventWithId = { ...eventToSave, id: crypto.randomUUID() };
+      toast({ title: "Tarea Actualizada", description: `"${processedEvent.name}" ha sido actualizada.` });
+    } else { 
+      const newEventWithId = { ...processedEvent, id: crypto.randomUUID() };
       setEvents(prevEvents => [...prevEvents, newEventWithId]);
-      toast({ title: "Evento Creado", description: `"${newEventWithId.name}" ha sido añadido.` });
+      toast({ title: "Tarea Creada", description: `"${newEventWithId.name}" ha sido añadida.` });
     }
     handleModalClose();
   };
@@ -151,12 +156,11 @@ export default function CalReactAppPage() {
   const handleModalDelete = (eventId: string) => {
     const eventToDelete = events.find(e => e.id === eventId);
     setEvents(prevEvents => prevEvents.filter(event => event.id !== eventId));
-    toast({ title: "Evento Eliminado", description: `"${eventToDelete?.name}" ha sido eliminado.`, variant: "destructive" });
+    toast({ title: "Tarea Eliminada", description: `"${eventToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
     handleModalClose();
   };
 
   if (!isClient || currentDate === undefined) {
-    // Render skeleton UI until client is mounted and currentDate is initialized
     return (
       <div className="flex flex-col h-screen bg-background text-foreground p-0 sm:p-4">
         <header className="p-4 text-center sm:text-left">
