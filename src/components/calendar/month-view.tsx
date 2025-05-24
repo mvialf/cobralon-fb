@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { EventType } from '@/types/event';
@@ -7,7 +8,6 @@ import {
   isSameMonth, 
   isToday, 
   format,
-  isSameDay,
   startOfDay,
   endOfDay
 } from '@/lib/calendar-utils';
@@ -62,14 +62,16 @@ export function MonthView({
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 grid-rows-5 flex-grow overflow-auto">
+      {/* Removed grid-rows-5 to allow rows to size based on content */}
+      <div className="grid grid-cols-7 flex-grow overflow-auto"> 
         {weeks.flat().map((day, index) => {
           const dayEvents = getEventsForDay(day);
           return (
             <div
               key={index}
               className={cn(
-                "border-r border-b border-border p-1.5 flex flex-col min-h-[calc((100vh-200px)/5)] sm:min-h-[calc((100vh-200px)/5.5)] md:min-h-[calc((100vh-220px)/5.5)] lg:min-h-[calc((100vh-240px)/5.5)] relative cursor-pointer hover:bg-secondary/50 transition-colors duration-150",
+                // Removed min-h-[...] classes
+                "border-r border-b border-border p-1.5 flex flex-col relative cursor-pointer hover:bg-secondary/50 transition-colors duration-150",
                 !isSameMonth(day, currentDate) && "bg-muted/30 text-muted-foreground/60",
                 isToday(day) && "bg-primary/10",
                 (index + 1) % 7 === 0 && "border-r-0" // No right border for last column
@@ -84,8 +86,9 @@ export function MonthView({
               >
                 {format(day, 'd')}
               </span>
-              <div className="flex-grow space-y-0.5 overflow-y-auto max-h-[calc(100%-2rem)]">
-                {dayEvents.slice(0, 3).map(event => ( // Show max 3 events, then maybe a "+X more"
+              {/* Removed overflow-y-auto and max-h-[...] from this div */}
+              <div className="flex-grow space-y-0.5"> 
+                {dayEvents.slice(0, 3).map(event => ( 
                   <CalendarEvent 
                     key={event.id} 
                     event={event} 
