@@ -70,11 +70,11 @@ export function CalendarToolbar({
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-b border-border bg-card rounded-t-lg">
       <div className="flex items-center gap-2 w-full sm:w-auto">
-        <Button variant="outline" onClick={onToday}>Today</Button>
-        <Button variant="outline" size="icon" onClick={handlePrev} aria-label="Previous period">
+        <Button variant="outline" onClick={onToday}>Hoy</Button>
+        <Button variant="outline" size="icon" onClick={handlePrev} aria-label="Periodo anterior">
           <ChevronLeft className="h-5 w-5" />
         </Button>
-        <Button variant="outline" size="icon" onClick={handleNext} aria-label="Next period">
+        <Button variant="outline" size="icon" onClick={handleNext} aria-label="Periodo siguiente">
           <ChevronRight className="h-5 w-5" />
         </Button>
         <h2 className="text-xl font-semibold text-foreground ml-2 whitespace-nowrap">
@@ -87,7 +87,7 @@ export function CalendarToolbar({
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Filter events..."
+            placeholder="Filtrar eventos..."
             value={filterTerm}
             onChange={(e) => onFilterChange(e.target.value)}
             className="pl-8"
@@ -95,18 +95,18 @@ export function CalendarToolbar({
         </div>
         
         <Select value={currentView} onValueChange={(value) => onViewChange(value as ViewOption)}>
-          <SelectTrigger className="w-full sm:w-[120px]" aria-label="Select calendar view">
+          <SelectTrigger className="w-full sm:w-[120px]" aria-label="Seleccionar vista de calendario">
             <SelectValue placeholder="Select view" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="month"><CalendarDays className="inline-block mr-2 h-4 w-4"/>Month</SelectItem>
-            <SelectItem value="week"><Columns className="inline-block mr-2 h-4 w-4"/>Week</SelectItem>
-            <SelectItem value="day"><SigmaSquare className="inline-block mr-2 h-4 w-4"/>Day</SelectItem> 
+            <SelectItem value="month"><CalendarDays className="inline-block mr-2 h-4 w-4"/>Mes</SelectItem>
+            <SelectItem value="week"><Columns className="inline-block mr-2 h-4 w-4"/>Semana</SelectItem>
+            <SelectItem value="day"><SigmaSquare className="inline-block mr-2 h-4 w-4"/>Día</SelectItem> 
           </SelectContent>
         </Select>
 
         <Button onClick={onAddEvent} className="bg-primary hover:bg-primary/90 text-primary-foreground w-full sm:w-auto">
-          <Plus className="mr-2 h-5 w-5" /> Add Event
+          <Plus className="mr-2 h-5 w-5" /> Añadir Evento
         </Button>
       </div>
     </div>

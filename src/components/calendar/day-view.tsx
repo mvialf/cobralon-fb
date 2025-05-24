@@ -80,7 +80,7 @@ export function DayView({
     <div className="flex flex-col h-full bg-card rounded-lg shadow-md border border-border overflow-hidden">
       {/* Header: Day Name (already shown in toolbar, so this is mainly for structure) */}
       <div className="grid grid-cols-[auto_1fr] border-b border-border sticky top-0 bg-card z-10">
-        <div className="p-2 text-center font-medium text-sm text-muted-foreground border-r border-border">Time</div>
+        <div className="p-2 text-center font-medium text-sm text-muted-foreground border-r border-border">Hora</div>
         <div
           className={cn(
             "p-2 text-center font-medium text-sm",
@@ -101,7 +101,7 @@ export function DayView({
           <div className="grid grid-rows-[repeat(var(--time-slot-count),minmax(4rem,auto))] border-r border-border" style={{'--time-slot-count': timeSlots.length} as React.CSSProperties}>
             {timeSlots.map(slot => (
               <div key={slot} className="h-16 p-2 text-xs text-muted-foreground text-right border-b border-border flex items-center justify-end">
-                {format(new Date(2000, 0, 1, parseInt(slot.split(':')[0]), parseInt(slot.split(':')[1])), 'h:mm a')}
+                {format(new Date(2000, 0, 1, parseInt(slot.split(':')[0]), parseInt(slot.split(':')[1])), 'p')}
               </div>
             ))}
           </div>

@@ -1,32 +1,65 @@
 import {
-  addDays,
-  addHours,
-  addMonths,
-  addWeeks,
-  eachDayOfInterval,
-  endOfDay,
-  endOfMonth,
-  endOfWeek,
-  format,
-  getDay,
-  isSameDay,
-  isSameMonth,
-  isToday,
-  startOfDay,
-  startOfMonth,
-  startOfWeek,
-  subMonths,
-  subWeeks,
+  addDays as fnsAddDays,
+  addHours as fnsAddHours,
+  addMonths as fnsAddMonths,
+  addWeeks as fnsAddWeeks,
+  eachDayOfInterval as fnsEachDayOfInterval,
+  endOfDay as fnsEndOfDay,
+  endOfMonth as fnsEndOfMonth,
+  endOfWeek as fnsEndOfWeek,
+  format as fnsFormat,
+  getDay as fnsGetDay,
+  isSameDay as fnsIsSameDay,
+  isSameMonth as fnsIsSameMonth,
+  isToday as fnsIsToday,
+  startOfDay as fnsStartOfDay,
+  startOfMonth as fnsStartOfMonth,
+  startOfWeek as fnsStartOfWeek,
+  subMonths as fnsSubMonths,
+  subWeeks as fnsSubWeeks,
 } from 'date-fns';
+import { es } from 'date-fns/locale'; // Import Spanish locale
 import type { EventType, ViewOption } from '@/types/event';
 
-export const getDaysInMonth = (date: Date, weekStartsOn: 0 | 1 = 0): Date[][] => {
-  const monthStart = startOfMonth(date);
-  const monthEnd = endOfMonth(monthStart);
-  const startDate = startOfWeek(monthStart, { weekStartsOn });
-  const endDate = endOfWeek(monthEnd, { weekStartsOn });
+// Custom format function that defaults to Spanish locale
+const format = (
+  date: Date | number | string,
+  formatString: string,
+  options?: Omit<Parameters<typeof fnsFormat>[2], 'locale'>
+): string => {
+  return fnsFormat(date, formatString, { ...options, locale: es });
+};
 
-  const days = eachDayOfInterval({ start: startDate, end: endDate });
+// Export the custom format function and other date-fns functions
+export {
+  fnsAddDays as addDays,
+  fnsAddHours as addHours,
+  fnsAddMonths as addMonths,
+  fnsAddWeeks as addWeeks,
+  fnsEachDayOfInterval as eachDayOfInterval,
+  fnsEndOfDay as endOfDay,
+  fnsEndOfMonth as endOfMonth,
+  fnsEndOfWeek as endOfWeek,
+  format, // Export our localized version
+  fnsGetDay as getDay,
+  fnsIsSameDay as isSameDay,
+  fnsIsSameMonth as isSameMonth,
+  fnsIsToday as isToday,
+  fnsStartOfDay as startOfDay,
+  fnsStartOfMonth as startOfMonth,
+  fnsStartOfWeek as startOfWeek,
+  fnsSubMonths as subMonths,
+  fnsSubWeeks as subWeeks,
+};
+
+
+export const getDaysInMonth = (date: Date, weekStartsOnValue: 0 | 1 = 0): Date[][] => {
+  const monthStart = fnsStartOfMonth(date);
+  const monthEnd = fnsEndOfMonth(monthStart);
+  const startDate = fnsStartOfWeek(monthStart, { weekStartsOn: weekStartsOnValue });
+  const endDate = fnsEndOfWeek(monthEnd, { weekStartsOn: weekStartsOnValue });
+
+  const days = fnsEachDayOfInterval({ start: startDate, end: endDate });
   const weeks: Date[][] = [];
   for (let i = 0; i < days.length; i += 7) {
     weeks.push(days.slice(i, i + 7));
@@ -34,9 +67,9 @@ export const getDaysInMonth = (date: Date, weekStartsOn: 0 | 1 = 0): Date[][] =>
   return weeks;
 };
 
-export const getDaysInWeek = (date: Date, weekStartsOn: 0 | 1 = 0): Date[] => {
-  const weekStart = startOfWeek(date, { weekStartsOn });
-  return eachDayOfInterval({ start: weekStart, end: endOfWeek(weekStart, { weekStartsOn }) });
+export const getDaysInWeek = (date: Date, weekStartsOnValue: 0 | 1 = 0): Date[] => {
+  const weekStart = fnsStartOfWeek(date, { weekStartsOn: weekStartsOnValue });
+  return fnsEachDayOfInterval({ start: weekStart, end: fnsEndOfWeek(weekStart, { weekStartsOn: weekStartsOnValue }) });
 };
 
 export const getTimeSlots = (startHour: number = 0, endHour: number = 24, intervalMinutes: number = 60): string[] => {
@@ -52,13 +85,13 @@ export const getTimeSlots = (startHour: number = 0, endHour: number = 24, interv
 };
 
 export const getEventsForDate = (events: EventType[], date: Date): EventType[] => {
-  return events.filter(event => isSameDay(event.startDate, date) || (event.startDate < date && event.endDate > date));
+  return events.filter(event => fnsIsSameDay(event.startDate, date) || (event.startDate < date && event.endDate > date));
 };
 
 export const getEventsForSlot = (events: EventType[], date: Date, timeSlot: string, view: ViewOption): EventType[] => {
   const [hour, minute] = timeSlot.split(':').map(Number);
   const slotStartDateTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, minute);
-  const slotEndDateTime = addHours(slotStartDateTime, view === 'day' || view === 'week' ? 1 : 24) // Assume 1 hour slots for week/day
+  const slotEndDateTime = fnsAddHours(slotStartDateTime, view === 'day' || view === 'week' ? 1 : 24) // Assume 1 hour slots for week/day
 
   return events.filter(event => {
     const eventStart = event.startDate;
@@ -66,26 +99,4 @@ export const getEventsForSlot = (events: EventType[], date: Date, timeSlot: stri
     // Check if event overlaps with the slot
     return (eventStart < slotEndDateTime && eventEnd > slotStartDateTime);
   });
-};
-
-
-export {
-  addDays,
-  addMonths,
-  addWeeks,
-  endOfDay,
-  endOfMonth,
-  endOfWeek,
-  format,
-  getDay,
-  isSameDay,
-  isSameMonth,
-  isToday,
-  startOfDay,
-  startOfMonth,
-  startOfWeek,
-  subMonths,
-  subWeeks,
-  eachDayOfInterval,
-  addHours,
 };

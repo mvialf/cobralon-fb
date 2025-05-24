@@ -24,7 +24,7 @@ export function CalendarEvent({ event, onClick, view }: CalendarEventProps) {
     onClick(event);
   };
 
-  const formattedTime = (date: Date) => format(date, 'h:mm a');
+  const formattedTime = (date: Date) => format(date, 'p'); // 'p' is locale-aware time format
 
   return (
     <div
@@ -32,7 +32,7 @@ export function CalendarEvent({ event, onClick, view }: CalendarEventProps) {
                   ${view === 'month' ? 'text-white hover:opacity-80' : 'text-primary-foreground shadow-sm hover:shadow-md'}`}
       style={eventStyle}
       onClick={handleClick}
-      title={`${event.name}\n${format(event.startDate, 'MMM d, h:mm a')} - ${format(event.endDate, 'MMM d, h:mm a')}${event.description ? '\n' + event.description : ''}`}
+      title={`${event.name}\n${format(event.startDate, 'MMM d, p')} - ${format(event.endDate, 'MMM d, p')}${event.description ? '\n' + event.description : ''}`}
       // draggable={enableDragAndDrop}
       // onDragStart={(e) => onDragStart?.(e, event.id)}
     >

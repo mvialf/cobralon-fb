@@ -28,15 +28,18 @@ export function MonthView({
   events, 
   onEventClick, 
   onDayCellClick, 
-  weekStartsOn = 0,
+  weekStartsOn = 0, // Default to Sunday
   enableDragAndDrop,
   enableResizing,
 }: MonthViewProps) {
   const weeks = getDaysInMonth(currentDate, weekStartsOn);
-  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  
+  // Day names in Spanish, considering weekStartsOn
+  let dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
   if (weekStartsOn === 1) { // Monday start
-    dayNames.push(dayNames.shift()!);
+    dayNames.push(dayNames.shift()!); // Moves "Dom" to the end
   }
+
 
   const getEventsForDay = (day: Date) => {
     const dayStart = startOfDay(day);
@@ -94,7 +97,7 @@ export function MonthView({
                 ))}
                 {dayEvents.length > 3 && (
                   <div className="text-xs text-muted-foreground p-1 text-center">
-                    +{dayEvents.length - 3} more
+                    +{dayEvents.length - 3} más
                   </div>
                 )}
               </div>

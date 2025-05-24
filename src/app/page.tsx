@@ -117,7 +117,7 @@ export default function CalReactAppPage() {
         event.id === eventId ? { ...event, startDate: newStartDate, endDate: newEndDate } : event
       )
     );
-    toast({ title: "Event Updated", description: "Event time changed by drag & drop." });
+    toast({ title: "Evento Actualizado", description: "Hora del evento cambiada arrastrando y soltando." });
   };
 
   const handleEventResize = (eventId: string, newStartDate: Date, newEndDate: Date) => {
@@ -126,7 +126,7 @@ export default function CalReactAppPage() {
         event.id === eventId ? { ...event, startDate: newStartDate, endDate: newEndDate } : event
       )
     );
-    toast({ title: "Event Resized", description: "Event duration has been updated." });
+    toast({ title: "Evento Redimensionado", description: "La duración del evento ha sido actualizada." });
   };
 
   const handleModalClose = () => {
@@ -139,11 +139,11 @@ export default function CalReactAppPage() {
       setEvents(prevEvents =>
         prevEvents.map(event => (event.id === eventToSave.id ? { ...event, ...eventToSave } : event))
       );
-      toast({ title: "Event Updated", description: `"${eventToSave.name}" has been updated.` });
+      toast({ title: "Evento Actualizado", description: `"${eventToSave.name}" ha sido actualizado.` });
     } else { // Creating new event
       const newEventWithId = { ...eventToSave, id: crypto.randomUUID() };
       setEvents(prevEvents => [...prevEvents, newEventWithId]);
-      toast({ title: "Event Created", description: `"${newEventWithId.name}" has been added.` });
+      toast({ title: "Evento Creado", description: `"${newEventWithId.name}" ha sido añadido.` });
     }
     handleModalClose();
   };
@@ -151,7 +151,7 @@ export default function CalReactAppPage() {
   const handleModalDelete = (eventId: string) => {
     const eventToDelete = events.find(e => e.id === eventId);
     setEvents(prevEvents => prevEvents.filter(event => event.id !== eventId));
-    toast({ title: "Event Deleted", description: `"${eventToDelete?.name}" has been removed.`, variant: "destructive" });
+    toast({ title: "Evento Eliminado", description: `"${eventToDelete?.name}" ha sido eliminado.`, variant: "destructive" });
     handleModalClose();
   };
 
@@ -161,7 +161,7 @@ export default function CalReactAppPage() {
       <div className="flex flex-col h-screen bg-background text-foreground p-0 sm:p-4">
         <header className="p-4 text-center sm:text-left">
           <h1 className="text-3xl font-bold text-primary">CalReact</h1>
-          <p className="text-muted-foreground">Advanced Calendar Application</p>
+          <p className="text-muted-foreground">Aplicación de Calendario Avanzada</p>
         </header>
         <main className="flex-grow flex flex-col overflow-hidden p-0 sm:p-4 rounded-lg shadow-2xl bg-card">
           <ToolbarSkeleton />
@@ -175,7 +175,7 @@ export default function CalReactAppPage() {
     <div className="flex flex-col h-screen bg-background text-foreground p-0 sm:p-4">
       <header className="p-4 text-center sm:text-left">
         <h1 className="text-3xl font-bold text-primary">CalReact</h1>
-        <p className="text-muted-foreground">Advanced Calendar Application</p>
+        <p className="text-muted-foreground">Aplicación de Calendario Avanzada</p>
       </header>
       
       <main className="flex-grow flex flex-col overflow-hidden p-0 sm:p-4 rounded-lg shadow-2xl bg-card">
@@ -217,4 +217,3 @@ export default function CalReactAppPage() {
     </div>
   );
 }
-

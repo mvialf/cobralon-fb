@@ -92,7 +92,7 @@ export function EventModal({
   const handleSave = (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      toast({ title: "Validation Error", description: "Event name is required.", variant: "destructive" });
+      toast({ title: "Error de Validación", description: "El nombre del evento es obligatorio.", variant: "destructive" });
       return;
     }
 
@@ -100,7 +100,7 @@ export function EventModal({
     const combinedEndDate = new Date(`${endDate}T${endTime}`);
 
     if (combinedEndDate < combinedStartDate) {
-      toast({ title: "Validation Error", description: "End date cannot be before start date.", variant: "destructive" });
+      toast({ title: "Error de Validación", description: "La fecha de fin no puede ser anterior a la fecha de inicio.", variant: "destructive" });
       return;
     }
     
@@ -125,7 +125,7 @@ export function EventModal({
 
   const handleEnrichTitle = async () => {
     if (!name.trim()) {
-      toast({ title: "Cannot Enrich", description: "Please enter a title first.", variant: "destructive" });
+      toast({ title: "No se puede Enriquecer", description: "Por favor, introduce un título primero.", variant: "destructive" });
       return;
     }
     startTransition(async () => {
@@ -138,13 +138,13 @@ export function EventModal({
         });
         if (result.enrichedTitle) {
           setName(result.enrichedTitle);
-          toast({ title: "Title Enriched!", description: "AI has suggested a new title." });
+          toast({ title: "¡Título Enriquecido!", description: "La IA ha sugerido un nuevo título." });
         } else {
-          toast({ title: "Enrichment Failed", description: "Could not enrich title.", variant: "destructive" });
+          toast({ title: "Fallo al Enriquecer", description: "No se pudo enriquecer el título.", variant: "destructive" });
         }
       } catch (error) {
         console.error("Error enriching title:", error);
-        toast({ title: "Error", description: "Failed to enrich title due to an error.", variant: "destructive" });
+        toast({ title: "Error", description: "Fallo al enriquecer el título debido a un error.", variant: "destructive" });
       }
     });
   };
@@ -160,23 +160,23 @@ export function EventModal({
       <DialogContent className="sm:max-w-[480px] shadow-xl rounded-lg">
         <DialogHeader>
           <DialogTitle className="text-2xl font-semibold">
-            {currentId ? 'Edit Event' : 'Add New Event'}
+            {currentId ? 'Editar Evento' : 'Añadir Nuevo Evento'}
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSave}>
           <div className="grid gap-6 py-6 px-2">
             <div className="grid gap-3">
-              <Label htmlFor="name" className="text-sm font-medium">Event Name</Label>
+              <Label htmlFor="name" className="text-sm font-medium">Nombre del Evento</Label>
               <div className="flex items-center gap-2">
                 <Input
                   id="name"
                   value={name}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
-                  placeholder="e.g., Team Meeting"
+                  placeholder="Ej: Reunión de equipo"
                   className="flex-grow"
                   required
                 />
-                <Button type="button" variant="outline" size="icon" onClick={handleEnrichTitle} disabled={isPending || !name.trim()} aria-label="Enrich Title with AI">
+                <Button type="button" variant="outline" size="icon" onClick={handleEnrichTitle} disabled={isPending || !name.trim()} aria-label="Enriquecer Título con IA">
                   {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
                 </Button>
               </div>
@@ -184,46 +184,46 @@ export function EventModal({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-3">
-                <Label htmlFor="start-date" className="text-sm font-medium">Start Date</Label>
+                <Label htmlFor="start-date" className="text-sm font-medium">Fecha de Inicio</Label>
                 <Input id="start-date" type="date" value={startDate} onChange={(e: ChangeEvent<HTMLInputElement>) => setStartDate(e.target.value)} required />
               </div>
               <div className="grid gap-3">
-                <Label htmlFor="start-time" className="text-sm font-medium">Start Time</Label>
+                <Label htmlFor="start-time" className="text-sm font-medium">Hora de Inicio</Label>
                 <Input id="start-time" type="time" value={startTime} onChange={(e: ChangeEvent<HTMLInputElement>) => setStartTime(e.target.value)} required />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-3">
-                <Label htmlFor="end-date" className="text-sm font-medium">End Date</Label>
+                <Label htmlFor="end-date" className="text-sm font-medium">Fecha de Fin</Label>
                 <Input id="end-date" type="date" value={endDate} onChange={(e: ChangeEvent<HTMLInputElement>) => setEndDate(e.target.value)} required />
               </div>
               <div className="grid gap-3">
-                <Label htmlFor="end-time" className="text-sm font-medium">End Time</Label>
+                <Label htmlFor="end-time" className="text-sm font-medium">Hora de Fin</Label>
                 <Input id="end-time" type="time" value={endTime} onChange={(e: ChangeEvent<HTMLInputElement>) => setEndTime(e.target.value)} required />
               </div>
             </div>
             
             <div className="grid gap-3">
-              <Label htmlFor="description" className="text-sm font-medium">Description</Label>
+              <Label htmlFor="description" className="text-sm font-medium">Descripción</Label>
               <Textarea
                 id="description"
                 value={description}
                 onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
-                placeholder="Optional: Add more details about the event"
+                placeholder="Opcional: Añade más detalles sobre el evento"
                 className="min-h-[100px]"
               />
             </div>
 
             <div className="grid gap-3">
-              <Label htmlFor="color" className="text-sm font-medium">Event Color</Label>
+              <Label htmlFor="color" className="text-sm font-medium">Color del Evento</Label>
               <div className="flex items-center gap-2">
                 <Input
                   id="color-text"
                   type="text"
                   value={color}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setColor(e.target.value)}
-                  placeholder="e.g., #64B5F6 or blue"
+                  placeholder="Ej: #BA68C8 o azul"
                   className="flex-grow"
                 />
                 <Input
@@ -232,10 +232,10 @@ export function EventModal({
                   value={color.startsWith('#') ? color : '#000000'} // type="color" needs hex
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setColor(e.target.value)}
                   className="w-10 h-10 p-0 border-none rounded-md cursor-pointer"
-                  aria-label="Choose event color"
+                  aria-label="Elegir color del evento"
                 />
               </div>
-               <p className="text-xs text-muted-foreground">Enter a hex code (e.g. #BA68C8) or use the color picker.</p>
+               <p className="text-xs text-muted-foreground">Introduce un código hexadecimal (ej: #BA68C8) o usa el selector de color.</p>
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
@@ -243,20 +243,20 @@ export function EventModal({
                <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button type="button" variant="destructive" className="w-full sm:w-auto">
-                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                    <Trash2 className="mr-2 h-4 w-4" /> Eliminar
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete the event.
+                      Esta acción no se puede deshacer. Esto eliminará permanentemente el evento.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
                     <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
-                      Yes, delete event
+                      Sí, eliminar evento
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -264,11 +264,11 @@ export function EventModal({
             )}
             <DialogClose asChild>
               <Button type="button" variant="outline" className="w-full sm:w-auto">
-                Cancel
+                Cancelar
               </Button>
             </DialogClose>
             <Button type="submit" className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground">
-              <Save className="mr-2 h-4 w-4" /> Save Event
+              <Save className="mr-2 h-4 w-4" /> Guardar Evento
             </Button>
           </DialogFooter>
         </form>
