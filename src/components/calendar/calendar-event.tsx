@@ -51,7 +51,7 @@ export function CalendarEvent({ event, onClick, view }: CalendarEventProps) {
 
   return (
     <div
-      className={`p-1.5 rounded-md text-xs cursor-pointer overflow-hidden h-full shadow-sm hover:shadow-md
+      className={`p-1.5 rounded-md text-xs cursor-pointer overflow-hidden shadow-sm hover:shadow-md
                   ${view === 'month' ? 'text-white hover:opacity-90' : 'text-primary-foreground'}`}
       style={eventStyle}
       onClick={handleClick}
@@ -66,9 +66,14 @@ export function CalendarEvent({ event, onClick, view }: CalendarEventProps) {
       {(view === 'week' || view === 'day') && event.description && (
         <p className="text-xs truncate opacity-75 mt-0.5">{event.description}</p>
       )}
-       {view === 'month' && event.description && (
-        <p className="text-xs truncate opacity-75 mt-0.5">{event.description}</p>
-      )}
+      {/* 
+        The following block was removed to make month view events more compact.
+        The description is still available in the tooltip.
+        {view === 'month' && event.description && (
+          <p className="text-xs truncate opacity-75 mt-0.5">{event.description}</p>
+        )}
+      */}
     </div>
   );
 }
+
