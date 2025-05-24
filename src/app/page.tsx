@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -9,8 +10,32 @@ import { mockEvents } from '@/lib/mock-data';
 import { useToast } from '@/hooks/use-toast';
 import { addHours } from '@/lib/calendar-utils';
 
+// Skeleton components for loading state
+const ToolbarSkeleton = () => (
+  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-b border-border bg-card rounded-t-lg animate-pulse">
+    <div className="flex items-center gap-2 w-full sm:w-auto">
+      <div className="h-10 w-20 bg-muted/70 rounded-md"></div> {/* Today Button */}
+      <div className="h-10 w-10 bg-muted/70 rounded-md"></div> {/* Prev Button */}
+      <div className="h-10 w-10 bg-muted/70 rounded-md"></div> {/* Next Button */}
+      <div className="h-6 w-40 bg-muted/70 rounded-md ml-2"></div> {/* Title */}
+    </div>
+    <div className="flex items-center gap-2 w-full sm:w-auto sm:justify-end">
+      <div className="h-10 sm:w-48 w-full bg-muted/70 rounded-md"></div> {/* Filter */}
+      <div className="h-10 sm:w-[120px] w-full bg-muted/70 rounded-md"></div> {/* View Select */}
+      <div className="h-10 sm:w-32 w-full bg-muted/70 rounded-md"></div> {/* Add Event */}
+    </div>
+  </div>
+);
+
+const CalendarViewSkeleton = () => (
+  <div className="flex-grow overflow-auto p-0 sm:p-2 md:p-4 animate-pulse">
+    <div className="h-full w-full bg-muted/70 rounded-lg"></div> {/* Calendar area */}
+  </div>
+);
+
 export default function CalReactAppPage() {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState<Date | undefined>(undefined);
+  const [isClient, setIsClient] = useState(false);
   const [events, setEvents] = useState<EventType[]>([]);
   const [currentView, setCurrentView] = useState<ViewOption>('month');
   const [filterTerm, setFilterTerm] = useState('');
@@ -18,8 +43,11 @@ export default function CalReactAppPage() {
   const [selectedEvent, setSelectedEvent] = useState<EventType | Partial<Omit<EventType, 'id'>> | null>(null);
   const { toast } = useToast();
 
-  // Load mock events on initial mount
   useEffect(() => {
+    // This effect runs only on the client after mounting
+    setIsClient(true);
+    setCurrentDate(new Date());
+
     // Ensure mockEvents dates are actual Date objects if they aren't already
     const initialEvents = mockEvents.map(event => ({
       ...event,
@@ -27,7 +55,7 @@ export default function CalReactAppPage() {
       endDate: new Date(event.endDate),
     }));
     setEvents(initialEvents);
-  }, []);
+  }, []); // Empty dependency array ensures this runs once on mount
 
   const filteredEvents = useMemo(() => {
     if (!filterTerm.trim()) {
@@ -73,8 +101,6 @@ export default function CalReactAppPage() {
   };
 
   const handleDayCellClick = (date: Date, viewContext: ViewOption) => {
-    // For month view, 'date' is the start of the day. For week/day, 'date' includes the time.
-    // We can default the end time to 1 hour after.
     setSelectedEvent({
       name: '',
       startDate: date,
@@ -129,6 +155,22 @@ export default function CalReactAppPage() {
     handleModalClose();
   };
 
+  if (!isClient || currentDate === undefined) {
+    // Render skeleton UI until client is mounted and currentDate is initialized
+    return (
+      <div className="flex flex-col h-screen bg-background text-foreground p-0 sm:p-4">
+        <header className="p-4 text-center sm:text-left">
+          <h1 className="text-3xl font-bold text-primary">CalReact</h1>
+          <p className="text-muted-foreground">Advanced Calendar Application</p>
+        </header>
+        <main className="flex-grow flex flex-col overflow-hidden p-0 sm:p-4 rounded-lg shadow-2xl bg-card">
+          <ToolbarSkeleton />
+          <CalendarViewSkeleton />
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen bg-background text-foreground p-0 sm:p-4">
       <header className="p-4 text-center sm:text-left">
@@ -154,10 +196,10 @@ export default function CalReactAppPage() {
             currentView={currentView}
             onEventClick={handleEventClick}
             onDayCellClick={handleDayCellClick}
-            onEventDrop={handleEventDrop} // Pass handler
-            onEventResize={handleEventResize} // Pass handler
-            enableDragAndDrop={true} // Enable prop (visual D&D simplified)
-            enableResizing={true}    // Enable prop (visual resize simplified)
+            onEventDrop={handleEventDrop}
+            onEventResize={handleEventResize}
+            enableDragAndDrop={true}
+            enableResizing={true}
             weekStartsOn={1} // Monday
           />
         </div>
@@ -175,3 +217,4 @@ export default function CalReactAppPage() {
     </div>
   );
 }
+
