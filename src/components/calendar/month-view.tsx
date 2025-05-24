@@ -37,7 +37,7 @@ export function MonthView({
   // Day names in Spanish, considering weekStartsOn
   let dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
   if (weekStartsOn === 1) { // Monday start
-    dayNames.push(dayNames.shift()!); // Moves "Dom" to the end
+    dayNames.push(dayNames.shift()!); 
   }
 
 
@@ -54,7 +54,7 @@ export function MonthView({
   };
 
   return (
-    <div className="flex flex-col h-full bg-card rounded-lg shadow-md border border-border overflow-hidden">
+    <div className="flex flex-col bg-card rounded-lg shadow-md border border-border"> {/* MODIFIED: Removed h-full and overflow-hidden */}
       <div className="grid grid-cols-7 border-b border-border">
         {dayNames.map(dayName => (
           <div key={dayName} className="p-2 text-center font-medium text-sm text-muted-foreground">
@@ -62,15 +62,13 @@ export function MonthView({
           </div>
         ))}
       </div>
-      {/* Removed grid-rows-5 to allow rows to size based on content */}
-      <div className="grid grid-cols-7 flex-grow overflow-auto"> 
+      <div className="grid grid-cols-7"> {/* MODIFIED: Removed flex-grow and overflow-auto */}
         {weeks.flat().map((day, index) => {
           const dayEvents = getEventsForDay(day);
           return (
             <div
               key={index}
               className={cn(
-                // Removed min-h-[...] classes
                 "border-r border-b border-border p-1.5 flex flex-col relative cursor-pointer hover:bg-secondary/50 transition-colors duration-150",
                 !isSameMonth(day, currentDate) && "bg-muted/30 text-muted-foreground/60",
                 isToday(day) && "bg-primary/10",
@@ -86,7 +84,6 @@ export function MonthView({
               >
                 {format(day, 'd')}
               </span>
-              {/* Removed overflow-y-auto and max-h-[...] from this div */}
               <div className="flex-grow space-y-0.5"> 
                 {dayEvents.slice(0, 3).map(event => ( 
                   <CalendarEvent 
