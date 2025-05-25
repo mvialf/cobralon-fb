@@ -9,6 +9,7 @@ import { CalendarToolbar } from '@/components/calendar/calendar-toolbar';
 import { mockEvents } from '@/lib/mock-data';
 import { useToast } from '@/hooks/use-toast';
 import { startOfDay, endOfDay } from '@/lib/calendar-utils';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 
 // Skeleton components for loading state
 const ToolbarSkeleton = () => (
@@ -133,7 +134,6 @@ export default function CalReactAppPage() {
   };
 
   const handleModalSave = (eventToSave: Omit<EventType, 'id'> & { id?: string }) => {
-    // Ensure startDate is start of day and endDate is end of day
     const processedEvent = {
       ...eventToSave,
       startDate: startOfDay(eventToSave.startDate),
@@ -162,10 +162,15 @@ export default function CalReactAppPage() {
 
   if (!isClient || currentDate === undefined) {
     return (
+      // El SidebarInset ya está en layout.tsx, por lo que este div es el children directo.
+      // El Trigger podría o no mostrarse en el skeleton. Por simplicidad, solo en el contenido cargado.
       <div className="flex flex-col h-screen bg-background text-foreground p-0 sm:p-4">
-        <header className="p-4 text-center sm:text-left">
-          <h1 className="text-3xl font-bold text-primary">CalReact</h1>
-          <p className="text-muted-foreground">Aplicación de Calendario Avanzada</p>
+        <header className="p-4 text-center sm:text-left flex items-center gap-4">
+           {/* Podríamos añadir un SidebarTrigger aquí si el esqueleto debe tenerlo */}
+           <div>
+            <h1 className="text-3xl font-bold text-primary">CalReact</h1>
+            <p className="text-muted-foreground">Aplicación de Calendario Avanzada</p>
+          </div>
         </header>
         <main className="flex-grow flex flex-col overflow-hidden p-0 sm:p-4 rounded-lg shadow-2xl bg-card">
           <ToolbarSkeleton />
@@ -176,10 +181,14 @@ export default function CalReactAppPage() {
   }
 
   return (
+    // El SidebarInset ya está en layout.tsx, por lo que este div es el children directo.
     <div className="flex flex-col h-screen bg-background text-foreground p-0 sm:p-4">
-      <header className="p-4 text-center sm:text-left">
-        <h1 className="text-3xl font-bold text-primary">CalReact</h1>
-        <p className="text-muted-foreground">Aplicación de Calendario Avanzada</p>
+      <header className="p-4 text-center sm:text-left flex items-center gap-4">
+        <SidebarTrigger className="md:hidden" /> {/* Para control móvil, se oculta en desktop */}
+        <div>
+          <h1 className="text-3xl font-bold text-primary">CalReact</h1>
+          <p className="text-muted-foreground">Aplicación de Calendario Avanzada</p>
+        </div>
       </header>
       
       <main className="flex-grow flex flex-col overflow-hidden p-0 sm:p-4 rounded-lg shadow-2xl bg-card">
