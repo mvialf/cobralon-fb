@@ -18,6 +18,17 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Edit, Trash2, PlusCircle, Users, Loader2 } from 'lucide-react';
 import ClientModal from '@/components/client-modal';
 import { useToast } from '@/hooks/use-toast';
@@ -37,11 +48,14 @@ const ClientRowSkeleton = () => (
 
 export default function ClientsPage() {
   const { toast } = useToast();
-  const queryClientHook = useQueryClient(); // Renamed to avoid conflict with QueryClient from @tanstack/react-query
+  const queryClientHook = useQueryClient();
 
   const [filterText, setFilterText] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | undefined>(undefined);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+
 
   const { data: clients = [], isLoading, isError, error } = useQuery<Client[], Error>({
     queryKey: ['clients'],
@@ -65,7 +79,6 @@ export default function ClientsPage() {
       updateClient(variables.clientId, variables.clientData),
     onSuccess: (_, variables) => {
       queryClientHook.invalidateQueries({ queryKey: ['clients'] });
-      // Find the client name for the toast message
       const updatedClient = clients.find(c => c.id === variables.clientId);
       toast({ title: "Cliente Actualizado", description: `"${updatedClient?.name || 'El cliente'}" ha sido actualizado.` });
       handleCloseModal();
@@ -79,11 +92,14 @@ export default function ClientsPage() {
     mutationFn: deleteClient,
     onSuccess: (_, clientId) => {
       queryClientHook.invalidateQueries({ queryKey: ['clients'] });
-      const deletedClient = clients.find(c => c.id === clientId);
-      toast({ title: "Cliente Eliminado", description: `"${deletedClient?.name || 'El cliente'}" ha sido eliminado.`, variant: "destructive" });
+      toast({ title: "Cliente Eliminado", description: `"${clientToDelete?.name || 'El cliente'}" ha sido eliminado.`, variant: "destructive" });
+      setClientToDelete(null);
+      setIsDeleteDialogOpen(false);
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: `No se pudo eliminar el cliente: ${err.message}`, variant: "destructive" });
+      setClientToDelete(null);
+      setIsDeleteDialogOpen(false);
     },
   });
 
@@ -98,19 +114,24 @@ export default function ClientsPage() {
     setSelectedClient(undefined);
   };
 
-  const handleDeleteClient = (clientId: string) => {
-    // Optional: Add a confirmation dialog here
-    deleteClientMutation.mutate(clientId);
+  const handleDeleteClientInitiate = (client: Client) => {
+    setClientToDelete(client);
+    setIsDeleteDialogOpen(true);
   };
+
+  const confirmDeleteClient = () => {
+    if (clientToDelete) {
+      deleteClientMutation.mutate(clientToDelete.id);
+    }
+  };
+
 
   const handleSaveClient = (savedClient: Client) => {
     if (savedClient.id) {
-      // Editing existing client
       const { id, ...clientData } = savedClient;
       updateClientMutation.mutate({ clientId: id, clientData });
     } else {
-      // Adding new client
-      const { id, ...newClientData } = savedClient; // id will be empty string here
+      const { id, ...newClientData } = savedClient; 
       addClientMutation.mutate(newClientData as Omit<Client, 'id'>);
     }
   };
@@ -160,7 +181,7 @@ export default function ClientsPage() {
               className="max-w-sm"
             />
           </div>
-          <CardContent className="pt-6"> {/* Added pt-6 here for spacing if CardHeader is removed */}
+          <CardContent className="pt-6">
             {isLoading ? (
               <Table>
                 <TableHeader>
@@ -189,7 +210,7 @@ export default function ClientsPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredClients.map((client) => (
-                    <TableRow key={client.id} className={isMutating && (updateClientMutation.variables?.clientId === client.id || deleteClientMutation.variables === client.id) ? 'opacity-50' : ''}>
+                    <TableRow key={client.id} className={isMutating && (updateClientMutation.variables?.clientId === client.id || deleteClientMutation.isLoading && clientToDelete?.id === client.id) ? 'opacity-50' : ''}>
                       <TableCell className="font-medium">{client.name}</TableCell>
                       <TableCell>{client.phone}</TableCell>
                       <TableCell>{client.email}</TableCell>
@@ -197,8 +218,8 @@ export default function ClientsPage() {
                         <Button variant="outline" size="icon" onClick={() => handleOpenModal(client)} aria-label="Editar cliente" disabled={isMutating}>
                           {isMutating && updateClientMutation.variables?.clientId === client.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
                         </Button>
-                        <Button variant="destructive" size="icon" onClick={() => handleDeleteClient(client.id)} aria-label="Eliminar cliente" disabled={isMutating}>
-                           {isMutating && deleteClientMutation.variables === client.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        <Button variant="destructive" size="icon" onClick={() => handleDeleteClientInitiate(client)} aria-label="Eliminar cliente" disabled={isMutating && clientToDelete?.id === client.id && deleteClientMutation.isPending}>
+                           {isMutating && clientToDelete?.id === client.id && deleteClientMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -216,6 +237,31 @@ export default function ClientsPage() {
         </Card>
       </main>
       <ClientModal isOpen={isModalOpen} onClose={handleCloseModal} onSave={handleSaveClient} clientData={selectedClient} />
+      
+      {clientToDelete && (
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción no se puede deshacer. Esto eliminará permanentemente al cliente "{clientToDelete.name}"
+                y todos sus proyectos, pagos y registros de postventa asociados.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setClientToDelete(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDeleteClient}
+                disabled={deleteClientMutation.isPending}
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                {deleteClientMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Sí, eliminar cliente
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }
