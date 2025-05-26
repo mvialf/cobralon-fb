@@ -1,4 +1,3 @@
-
 // src/services/clientService.ts
 import {
   collection,
@@ -10,47 +9,63 @@ import {
   query,
   orderBy,
   Timestamp,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import type { Client } from '@/types/client';
+import type { Client, ClientDocument } from '@/types/client';
 
 const CLIENTS_COLLECTION = 'clients';
 
 // Helper to convert Firestore Timestamps to Dates in client objects
 const clientFromDoc = (docSnapshot: any): Client => {
-  const data = docSnapshot.data();
+  const data = docSnapshot.data() as ClientDocument;
   return {
     id: docSnapshot.id,
-    ...data,
-    // Example if you had date fields:
-    // createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : data.createdAt,
-    // updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : data.updatedAt,
-  } as Client;
+    name: data.name,
+    phone: data.phone,
+    email: data.email,
+    address: data.address,
+    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : undefined,
+    updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : undefined,
+  };
 };
 
 
 export const getClients = async (): Promise<Client[]> => {
-  const clientsCollection = collection(db, CLIENTS_COLLECTION);
-  const q = query(clientsCollection, orderBy('name', 'asc')); // Sort by name
+  const clientsCollectionRef = collection(db, CLIENTS_COLLECTION);
+  const q = query(clientsCollectionRef, orderBy('name', 'asc'));
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(clientFromDoc);
 };
 
-export const addClient = async (clientData: Omit<Client, 'id'>): Promise<Client> => {
-  const clientsCollection = collection(db, CLIENTS_COLLECTION);
-  // Add server-side timestamp if you have createdAt/updatedAt fields
-  // const dataToSave = { ...clientData, createdAt: Timestamp.now(), updatedAt: Timestamp.now() };
-  const docRef = await addDoc(clientsCollection, clientData);
-  return { id: docRef.id, ...clientData };
+export const addClient = async (clientData: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>): Promise<Client> => {
+  const clientsCollectionRef = collection(db, CLIENTS_COLLECTION);
+  const dataToSave: Partial<ClientDocument> = {
+    ...clientData,
+    createdAt: serverTimestamp() as Timestamp,
+    updatedAt: serverTimestamp() as Timestamp,
+  };
+  const docRef = await addDoc(clientsCollectionRef, dataToSave);
+  // For returning the client, we'd ideally fetch it again or construct carefully
+  // For simplicity, we'll construct it, but createdAt/updatedAt will be null from serverTimestamp initially client-side
+  return { 
+    id: docRef.id, 
+    ...clientData, 
+    createdAt: new Date(), // Approximate client-side
+    updatedAt: new Date()  // Approximate client-side
+  };
 };
 
-export const updateClient = async (clientId: string, clientData: Partial<Omit<Client, 'id'>>): Promise<void> => {
-  const clientDoc = doc(db, CLIENTS_COLLECTION, clientId);
-  // const dataToUpdate = { ...clientData, updatedAt: Timestamp.now() };
-  await updateDoc(clientDoc, clientData);
+export const updateClient = async (clientId: string, clientData: Partial<Omit<Client, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> => {
+  const clientDocRef = doc(db, CLIENTS_COLLECTION, clientId);
+  const dataToUpdate: Partial<ClientDocument> = {
+    ...clientData,
+    updatedAt: serverTimestamp() as Timestamp,
+  };
+  await updateDoc(clientDocRef, dataToUpdate);
 };
 
 export const deleteClient = async (clientId: string): Promise<void> => {
-  const clientDoc = doc(db, CLIENTS_COLLECTION, clientId);
-  await deleteDoc(clientDoc);
+  const clientDocRef = doc(db, CLIENTS_COLLECTION, clientId);
+  await deleteDoc(clientDocRef);
 };
