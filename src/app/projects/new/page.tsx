@@ -421,15 +421,3 @@ export default function NewProjectPage() {
     </div>
   );
 }
-_SUBCOMMENTS_
-He añadido la opción "Crear Nuevo Cliente" al final de la lista desplegable del selector de clientes en la página "Nuevo Proyecto".
-Al seleccionar esta opción:
-1. Se cierra el desplegable de clientes.
-2. Se abre el modal `ClientModal` para que puedas ingresar los datos del nuevo cliente.
-3. Una vez guardado el nuevo cliente:
-    * Se cierra el modal.
-    * La lista de clientes en el desplegable se actualiza.
-    * El cliente recién creado se selecciona automáticamente en el formulario del proyecto.
-    * Se muestra una notificación de éxito.
-
-También he deshabilitado los campos del formulario de proyecto mientras el modal de cliente está abierto o se está procesando la creación de un nuevo cliente, para evitar interacciones conflictivas.
