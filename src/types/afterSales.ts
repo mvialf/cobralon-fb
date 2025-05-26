@@ -13,7 +13,7 @@ export type AfterSalesStatus = 'pendiente' | 'en progreso' | 'visita programada'
 
 export interface AfterSales {
   id: string;
-  projectId: string; // ID of the project document
+  projectId: string; // ID of the related project document in the 'projects' collection
   description?: string; // General description of the post-sales issue
   tasks?: TaskItem[]; // List of tasks to address the issue
   entryDate?: Date; // Date the post-sales request was made

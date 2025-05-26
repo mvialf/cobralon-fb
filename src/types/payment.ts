@@ -6,7 +6,7 @@ export type PaymentTypeOption = 'abono inicial' | 'abono parcial' | 'pago final'
 
 export interface Payment {
   id: string;
-  projectId: string; // ID of the project document
+  projectId: string; // ID of the related project document in the 'projects' collection
   amount?: number;
   date?: Date;
   paymentMethod?: PaymentMethod;

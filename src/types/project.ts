@@ -7,7 +7,7 @@ export type ProjectClassification = 'bajo' | 'medio' | 'alto' | string;
 export interface ProjectType {
   id: string;
   projectNumber: string;
-  clientId: string; // ID of the client document
+  clientId: string; // ID of the related client document in the 'clients' collection
   description?: string;
   date: Date; // Start date of the project
   subtotal: number;
