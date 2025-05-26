@@ -12,9 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ChangeEvent } from 'react';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { addClient, type ClientImportData } from '@/services/clientService'; // Import ClientImportData
-import { addProject } from '@/services/projectService';
-import type { ProjectType } from '@/types/project';
+import { addClient, type ClientImportData } from '@/services/clientService';
+import { addProject, type ProjectImportData } from '@/services/projectService';
+import type { ProjectStatus, ProjectClassification } from '@/types/project';
 import { Loader2 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -58,13 +58,15 @@ export default function SettingsPage() {
 
       let successCount = 0;
       let errorCount = 0;
+      const errorMessages: string[] = [];
 
       const importPromises = rawClientsToImport.map(item => {
-        // Validate required fields (name)
         if (!item.name || typeof item.name !== 'string' || item.name.trim() === '') {
           errorCount++;
-          console.error("Cliente omitido del JSON: falta 'name' o es inválido.", item);
-          return Promise.reject(new Error(`Cliente omitido: falta el campo 'name' o es inválido.`));
+          const msg = `Cliente omitido: falta 'name' o es inválido. ID: ${item.id || 'N/A'}`;
+          errorMessages.push(msg);
+          console.error(msg, item);
+          return Promise.reject(new Error(msg));
         }
 
         const clientPayload: ClientImportData = {
@@ -75,7 +77,6 @@ export default function SettingsPage() {
           clientPayload.id = item.id;
         }
         
-        // Handle optional fields, allowing null
         if (item.hasOwnProperty('phone')) {
           clientPayload.phone = typeof item.phone === 'string' || item.phone === null ? item.phone : String(item.phone);
         }
@@ -84,12 +85,12 @@ export default function SettingsPage() {
         }
 
         if (item.createdAt) {
-          if (typeof item.createdAt === 'string' || item.createdAt instanceof Date) {
+          if (typeof item.createdAt === 'string' || typeof item.createdAt === 'number' || item.createdAt instanceof Date) {
             const dateTest = new Date(item.createdAt);
             if (isNaN(dateTest.getTime())) {
               console.warn(`Fecha 'createdAt' inválida para cliente ${item.name || item.id}, se usará valor por defecto del servidor. Valor recibido:`, item.createdAt);
             } else {
-              clientPayload.createdAt = item.createdAt; // Pass string or Date to service
+              clientPayload.createdAt = dateTest;
             }
           } else {
             console.warn(`Formato 'createdAt' inesperado para cliente ${item.name || item.id}, se usará valor por defecto del servidor. Valor recibido:`, item.createdAt);
@@ -105,19 +106,24 @@ export default function SettingsPage() {
         if (result.status === 'fulfilled') {
           successCount++;
         } else {
-          // errorCount was already incremented for validation failures before calling addClient
-          // This path handles errors from addClient itself (e.g., Firestore permission issues)
           if (!result.reason.message.startsWith("Cliente omitido:")) {
-             errorCount++; // Avoid double counting
+             errorCount++;
+             errorMessages.push(result.reason.message || 'Error desconocido durante la importación del cliente.');
           }
           console.error("Error al importar cliente (desde addClient):", result.reason);
         }
       });
+      
+      let description = `${successCount} clientes importados exitosamente. ${errorCount} errores.`;
+      if (errorMessages.length > 0) {
+        description += ` Detalles: ${errorMessages.slice(0, 3).join('; ')}${errorMessages.length > 3 ? '...' : ''}`;
+      }
 
       toast({
         title: "Importación de Clientes Completada",
-        description: `${successCount} clientes importados exitosamente. ${errorCount} errores.`,
+        description: description,
         variant: errorCount > 0 ? "destructive" : "default",
+        duration: errorCount > 0 ? 10000 : 5000,
       });
 
     } catch (error: any) {
@@ -143,50 +149,98 @@ export default function SettingsPage() {
     setIsImportingProjects(true);
     try {
       const fileContent = await projectFile.text();
-      const projectsToImport: any[] = JSON.parse(fileContent); 
+      const projectsToImportJSON: any[] = JSON.parse(fileContent); 
 
-      if (!Array.isArray(projectsToImport)) {
+      if (!Array.isArray(projectsToImportJSON)) {
         throw new Error("El archivo JSON de proyectos debe contener un array.");
       }
 
       let successCount = 0;
       let errorCount = 0;
+      const errorMessages: string[] = [];
 
       const results = await Promise.allSettled(
-        projectsToImport.map(proj => {
-          // Basic validation
-          if (!proj.projectNumber || !proj.clientId || !proj.date || proj.subtotal === undefined || proj.taxRate === undefined || !proj.status || !proj.classification) {
-            errorCount++;
-            console.error("Proyecto omitido por campos faltantes:", proj);
-            return Promise.reject(new Error(`Proyecto '${proj.projectNumber || 'Desconocido'}' omitido: faltan campos obligatorios.`));
+        projectsToImportJSON.map(proj => {
+          // --- Validation ---
+          const requiredFields: (keyof ProjectImportData)[] = ['projectNumber', 'clientId', 'date', 'subtotal', 'taxRate', 'status', 'classification', 'collect'];
+          const missingFields = requiredFields.filter(field => proj[field] === undefined || proj[field] === null || (typeof proj[field] === 'string' && proj[field].trim() === ''));
+          
+          if (missingFields.length > 0) {
+            const msg = `Proyecto '${proj.projectNumber || 'Desconocido'}' omitido: faltan campos obligatorios: ${missingFields.join(', ')}.`;
+            errorMessages.push(msg);
+            console.error(msg, proj);
+            return Promise.reject(new Error(msg));
           }
 
-          const projectData: Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt' | 'total' | 'balance'> = {
-            projectNumber: proj.projectNumber,
-            clientId: proj.clientId,
-            description: proj.description || '',
-            date: new Date(proj.date), // Convert string date to Date object
+          // --- Data Preparation ---
+          let projectDate: Date;
+          try {
+            projectDate = new Date(proj.date);
+            if (isNaN(projectDate.getTime())) throw new Error('Invalid date format for "date"');
+          } catch (e) {
+            const msg = `Proyecto '${proj.projectNumber}': Fecha de inicio inválida. Formato esperado YYYY-MM-DD o ISO.`;
+            errorMessages.push(msg);
+            console.error(msg, proj.date);
+            return Promise.reject(new Error(msg));
+          }
+          
+          let projectEndDate: Date | undefined = undefined;
+          if (proj.endDate) {
+            try {
+              projectEndDate = new Date(proj.endDate);
+              if (isNaN(projectEndDate.getTime())) {
+                console.warn(`Proyecto '${proj.projectNumber}': Fecha de fin inválida, se omitirá.`, proj.endDate);
+                projectEndDate = undefined;
+              }
+            } catch (e) {
+              console.warn(`Proyecto '${proj.projectNumber}': Error al parsear fecha de fin, se omitirá.`, proj.endDate);
+              projectEndDate = undefined;
+            }
+          }
+
+          let projectCreatedAt: Date | undefined = undefined;
+          if (proj.createdAt) {
+            try {
+                projectCreatedAt = new Date(proj.createdAt);
+                if (isNaN(projectCreatedAt.getTime())) {
+                    console.warn(`Proyecto '${proj.projectNumber}': Fecha de creación inválida, se usará timestamp del servidor.`, proj.createdAt);
+                    projectCreatedAt = undefined;
+                }
+            } catch(e) {
+                console.warn(`Proyecto '${proj.projectNumber}': Error al parsear fecha de creación, se usará timestamp del servidor.`, proj.createdAt);
+                projectCreatedAt = undefined;
+            }
+          }
+
+
+          const projectDataPayload: ProjectImportData = {
+            id: (proj.id && typeof proj.id === 'string') ? proj.id.trim() : undefined,
+            projectNumber: String(proj.projectNumber).trim(),
+            clientId: String(proj.clientId).trim(),
+            date: projectDate,
             subtotal: Number(proj.subtotal),
             taxRate: Number(proj.taxRate),
-            status: proj.status,
-            classification: proj.classification,
-            endDate: proj.endDate ? new Date(proj.endDate) : undefined,
-            phone: proj.phone || '',
-            address: proj.address || '',
-            commune: proj.commune || '',
-            region: proj.region || 'RM',
-            windowsCount: Number(proj.windowsCount) || 0,
-            squareMeters: Number(proj.squareMeters) || 0,
-            uninstall: Boolean(proj.uninstall) || false,
-            uninstallTypes: Array.isArray(proj.uninstallTypes) ? proj.uninstallTypes : [],
-            uninstallOther: proj.uninstallOther || '',
-            glosa: proj.glosa || '',
-            collect: Boolean(proj.collect) || false,
-            isHidden: Boolean(proj.isHidden) || false,
+            status: proj.status as ProjectStatus,
+            classification: proj.classification as ProjectClassification,
+            collect: Boolean(proj.collect),
+            
+            description: proj.description ? String(proj.description) : '',
+            glosa: proj.glosa ? String(proj.glosa) : '',
+            endDate: projectEndDate,
+            createdAt: projectCreatedAt,
+            phone: proj.phone ? String(proj.phone) : '',
+            address: proj.address ? String(proj.address) : '',
+            commune: proj.commune ? String(proj.commune) : '',
+            region: proj.region ? String(proj.region) : 'RM',
+            windowsCount: proj.windowsCount ? Number(proj.windowsCount) : 0,
+            squareMeters: proj.squareMeters ? Number(proj.squareMeters) : 0,
+            uninstall: proj.hasOwnProperty('uninstall') ? Boolean(proj.uninstall) : false,
+            uninstallTypes: Array.isArray(proj.uninstallTypes) ? proj.uninstallTypes.map(String) : [],
+            uninstallOther: proj.uninstallOther ? String(proj.uninstallOther) : '',
+            isHidden: proj.hasOwnProperty('isHidden') ? Boolean(proj.isHidden) : false,
           };
           
-          // The addProject service calculates total and balance
-          return addProject(projectData);
+          return addProject(projectDataPayload);
         })
       );
 
@@ -194,15 +248,26 @@ export default function SettingsPage() {
         if (result.status === 'fulfilled') {
           successCount++;
         } else {
-          errorCount++;
+          // errorCount was incremented by rejected promises for validation errors
+          // This path handles errors from addProject itself
+          if (!errorMessages.some(msg => msg.includes(result.reason.message))) {
+            errorCount++; 
+            errorMessages.push(result.reason.message || 'Error desconocido durante la importación del proyecto.');
+          }
           console.error("Error al importar proyecto:", result.reason);
         }
       });
+      
+      let description = `${successCount} proyectos importados exitosamente. ${errorCount} errores.`;
+      if (errorMessages.length > 0) {
+        description += ` Detalles: ${errorMessages.slice(0, 3).join('; ')}${errorMessages.length > 3 ? '...' : ''}`;
+      }
 
       toast({
         title: "Importación de Proyectos Completada",
-        description: `${successCount} proyectos importados exitosamente. ${errorCount} errores.`,
+        description: description,
         variant: errorCount > 0 ? "destructive" : "default",
+        duration: errorCount > 0 ? 10000 : 5000,
       });
 
     } catch (error: any) {
@@ -324,8 +389,7 @@ export default function SettingsPage() {
                 <div className="space-y-3 p-4 border rounded-lg">
                   <Label htmlFor="import-clients" className="text-base font-semibold">Importar Clientes (JSON)</Label>
                   <p className="text-sm text-muted-foreground">
-                    Selecciona un archivo JSON que contenga un array de objetos de clientes.
-                    Cada objeto debe tener `name` (string). Opcional: `id` (string), `phone` (string o null), `email` (string o null), `createdAt` (string ISO 8601 o YYYY-MM-DD).
+                    Selecciona un archivo JSON con un array de clientes. Campos: `name` (string, req), `id` (string, opc), `phone` (string|null, opc), `email` (string|null, opc), `createdAt` (string ISO 8601 o YYYY-MM-DD, opc).
                   </p>
                   <div className="flex flex-col sm:flex-row items-center gap-3">
                     <Input
@@ -346,7 +410,7 @@ export default function SettingsPage() {
                 <div className="space-y-3 p-4 border rounded-lg">
                   <Label htmlFor="import-projects" className="text-base font-semibold">Importar Proyectos (JSON)</Label>
                   <p className="text-sm text-muted-foreground">
-                    Selecciona un archivo JSON con un array de proyectos. Campos requeridos: `projectNumber`, `clientId` (ID de Firestore del cliente), `date` (YYYY-MM-DD), `subtotal`, `taxRate`, `status`, `classification`.
+                    JSON array. Requeridos: `projectNumber`, `clientId`, `date` (YYYY-MM-DD), `subtotal`, `taxRate`, `status`, `classification`, `collect`. Opc: `id`, `description`, `glosa`, `endDate`, `createdAt`, `phone`, `address`, `commune`, `region`, `windowsCount`, `squareMeters`, `uninstall`, `uninstallTypes` (array de strings), `uninstallOther`, `isHidden`.
                   </p>
                   <div className="flex flex-col sm:flex-row items-center gap-3">
                     <Input

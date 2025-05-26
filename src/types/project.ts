@@ -12,8 +12,8 @@ export interface ProjectType {
   date: Date; // Start date of the project
   subtotal: number;
   taxRate: number;
-  total?: number;
-  balance?: number;
+  total?: number; // Calculated: subtotal * (1 + taxRate / 100)
+  balance?: number; // Initially same as total, decreases with payments
   createdAt?: Date;
   updatedAt?: Date;
   status: ProjectStatus;
@@ -26,10 +26,10 @@ export interface ProjectType {
   windowsCount?: number;
   squareMeters?: number;
   uninstall?: boolean;
-  uninstallTypes?: string[]; // Array of strings for uninstall types
+  uninstallTypes?: string[];
   uninstallOther?: string;
-  glosa?: string;
-  collect?: boolean; // Indicates if materials need to be collected
+  glosa?: string; // Short note or summary, similar to description but often more technical or brief
+  collect: boolean; // Indicates if materials need to be collected
   isHidden?: boolean; // For soft deletes or hiding projects from lists
 }
 
@@ -39,4 +39,19 @@ export interface ProjectDocument extends Omit<ProjectType, 'id' | 'date' | 'endD
   endDate?: Timestamp;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+}
+
+// Interface for data used when importing projects
+export interface ProjectImportData extends Partial<Omit<ProjectType, 'total' | 'balance' | 'updatedAt'>> {
+  id?: string; // If provided, this ID will be used for the document.
+  projectNumber: string;
+  clientId: string;
+  date: string | Date; // Can be string from JSON or Date object
+  subtotal: number;
+  taxRate: number;
+  status: ProjectStatus;
+  classification: ProjectClassification;
+  collect: boolean;
+  createdAt?: string | Date; // Can be string from JSON or Date object
+  endDate?: string | Date;
 }
