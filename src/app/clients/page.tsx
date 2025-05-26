@@ -27,8 +27,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+} from "@/components/ui/alert-dialog"; // Removed AlertDialogTrigger as it's used inline
 import { Edit, Trash2, PlusCircle, Users, Loader2 } from 'lucide-react';
 import ClientModal from '@/components/client-modal';
 import { useToast } from '@/hooks/use-toast';
@@ -96,8 +95,12 @@ export default function ClientsPage() {
       setClientToDelete(null);
       setIsDeleteDialogOpen(false);
     },
-    onError: (err: Error) => {
-      toast({ title: "Error", description: `No se pudo eliminar el cliente: ${err.message}`, variant: "destructive" });
+    onError: (err: any) => { // Changed to any to check for Firebase error codes
+      let description = `No se pudo eliminar el cliente: ${err.message}`;
+      if (err.code) { // Check if it's a Firebase error with a code
+        description += ` (Código: ${err.code})`;
+      }
+      toast({ title: "Error al Eliminar", description, variant: "destructive" });
       setClientToDelete(null);
       setIsDeleteDialogOpen(false);
     },
@@ -132,7 +135,7 @@ export default function ClientsPage() {
       updateClientMutation.mutate({ clientId: id, clientData });
     } else {
       const { id, ...newClientData } = savedClient; 
-      addClientMutation.mutate(newClientData as Omit<Client, 'id'>);
+      addClientMutation.mutate(newClientData as Omit<Client, 'id' | 'createdAt' | 'updatedAt'>);
     }
   };
 
@@ -210,13 +213,13 @@ export default function ClientsPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredClients.map((client) => (
-                    <TableRow key={client.id} className={isMutating && (updateClientMutation.variables?.clientId === client.id || deleteClientMutation.isLoading && clientToDelete?.id === client.id) ? 'opacity-50' : ''}>
+                    <TableRow key={client.id} className={isMutating && (updateClientMutation.variables?.clientId === client.id || (deleteClientMutation.isPending && clientToDelete?.id === client.id)) ? 'opacity-50' : ''}>
                       <TableCell className="font-medium">{client.name}</TableCell>
                       <TableCell>{client.phone}</TableCell>
                       <TableCell>{client.email}</TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button variant="outline" size="icon" onClick={() => handleOpenModal(client)} aria-label="Editar cliente" disabled={isMutating}>
-                          {isMutating && updateClientMutation.variables?.clientId === client.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
+                          {isMutating && updateClientMutation.variables?.clientId === client.id && updateClientMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
                         </Button>
                         <Button variant="destructive" size="icon" onClick={() => handleDeleteClientInitiate(client)} aria-label="Eliminar cliente" disabled={isMutating && clientToDelete?.id === client.id && deleteClientMutation.isPending}>
                            {isMutating && clientToDelete?.id === client.id && deleteClientMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
@@ -249,7 +252,7 @@ export default function ClientsPage() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setClientToDelete(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogCancel onClick={() => { setClientToDelete(null); setIsDeleteDialogOpen(false); }}>Cancelar</AlertDialogCancel>
               <AlertDialogAction
                 onClick={confirmDeleteClient}
                 disabled={deleteClientMutation.isPending}
