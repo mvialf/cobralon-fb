@@ -15,7 +15,7 @@ import { format as formatDateFns, parseISO } from 'date-fns';
 import type { ProjectType, ProjectStatus } from '@/types/project';
 import type { Client } from '@/types/client';
 import { addProject } from '@/services/projectService';
-import { getClients } from '@/services/clientService';
+import { getClients, addClient as addClientService } from '@/services/clientService'; // Renamed to avoid conflict
 import { useToast } from '@/hooks/use-toast';
 
 import { Button } from '@/components/ui/button';
@@ -23,12 +23,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card'; // Removed CardHeader, CardTitle, CardDescription as they are not used here directly
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Check, ChevronsUpDown, Loader2, Save, XCircle } from 'lucide-react';
+import { Check, ChevronsUpDown, Loader2, Save, XCircle, PlusCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import ClientModal from '@/components/client-modal';
 
 
 const projectSchema = z.object({
@@ -90,13 +91,14 @@ export default function NewProjectPage() {
   const { toast } = useToast();
   const queryClient = useQueryClientHook();
   const [openClientCombobox, setOpenClientCombobox] = useState(false);
+  const [isClientModalOpen, setIsClientModalOpen] = useState(false);
 
-  const { data: clients = [], isLoading: isLoadingClients } = useQuery<Client[], Error>({
+  const { data: clients = [], isLoading: isLoadingClients, refetch: refetchClients } = useQuery<Client[], Error>({
     queryKey: ['clients'],
     queryFn: getClients,
   });
 
-  const { register, handleSubmit, control, formState: { errors, isSubmitting }, setValue, watch } = useForm<ProjectFormValues>({
+  const { register, handleSubmit, control, formState: { errors, isSubmitting: isProjectSubmitting }, setValue, watch } = useForm<ProjectFormValues>({
     resolver: zodResolver(projectSchema),
     defaultValues: {
       date: new Date(),
@@ -106,7 +108,6 @@ export default function NewProjectPage() {
       subtotal: 0,
       windowsCount: 0,
       squareMeters: 0,
-      // otros defaults según el schema
       glosa: '',
       phone: '',
       commune: '',
@@ -130,24 +131,37 @@ export default function NewProjectPage() {
       toast({ title: "Error al Crear Proyecto", description: error.message || "No se pudo crear el proyecto.", variant: "destructive" });
     },
   });
+  
+  const addClientMutation = useMutation({
+    mutationFn: (clientData: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>) => addClientService(clientData),
+    onSuccess: (newClient) => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] }).then(() => {
+         // Ensure clients list is fresh before trying to set value
+        setValue("clientId", newClient.id, { shouldValidate: true, shouldDirty: true });
+      });
+      toast({ title: "Cliente Añadido", description: `"${newClient.name}" ha sido añadido.` });
+      setIsClientModalOpen(false);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: `No se pudo añadir el cliente: ${err.message}`, variant: "destructive" });
+    },
+  });
 
   const onSubmit: SubmitHandler<ProjectFormValues> = (data) => {
     const subtotal = Number(data.subtotal) || 0;
     const taxRate = Number(data.taxRate) || 0;
     const total = subtotal * (1 + taxRate / 100);
-    // Balance inicial es el total para nuevos proyectos
     const balance = total;
 
     const projectDataToSave: Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt'> = {
       ...data,
-      date: data.date, // Ya es un objeto Date por la transformación en el schema o el defaultValues
+      date: data.date,
       subtotal,
       taxRate,
       total,
       balance,
       windowsCount: Number(data.windowsCount) || 0,
       squareMeters: Number(data.squareMeters) || 0,
-      // Asegurar que los campos opcionales no enviados como undefined causen problemas
       description: data.description || '',
       endDate: data.endDate,
       classification: data.classification || 'bajo',
@@ -165,8 +179,22 @@ export default function NewProjectPage() {
     addProjectMutation.mutate(projectDataToSave);
   };
 
-
   const selectedClientId = watch("clientId");
+
+  const handleOpenClientModal = () => {
+    setOpenClientCombobox(false); // Close combobox
+    setIsClientModalOpen(true);
+  };
+
+  const handleCloseClientModal = () => {
+    setIsClientModalOpen(false);
+  };
+
+  const handleSaveNewClientFromModal = (savedClient: Client) => {
+     // The modal might pass an ID if it was somehow pre-filled, but for 'add new' it's usually not there or empty
+    const { id, createdAt, updatedAt, ...newClientData } = savedClient;
+    addClientMutation.mutate(newClientData as Omit<Client, 'id' | 'createdAt' | 'updatedAt'>);
+  };
 
   return (
     <div className="flex flex-col h-full p-4 md:p-6 lg:p-8">
@@ -196,7 +224,7 @@ export default function NewProjectPage() {
                           role="combobox"
                           aria-expanded={openClientCombobox}
                           className="w-full justify-between"
-                          disabled={isLoadingClients}
+                          disabled={isLoadingClients || addClientMutation.isPending}
                         >
                           {field.value
                             ? clients.find((client) => client.id === field.value)?.name
@@ -208,14 +236,16 @@ export default function NewProjectPage() {
                         <Command>
                           <CommandInput placeholder="Buscar cliente..." />
                           <CommandList>
-                            <CommandEmpty>No se encontró ningún cliente.</CommandEmpty>
+                            <CommandEmpty>
+                                <span className="text-sm">No se encontró ningún cliente.</span>
+                            </CommandEmpty>
                             <CommandGroup>
                               {clients.map((client) => (
                                 <CommandItem
                                   key={client.id}
                                   value={client.id}
                                   onSelect={(currentValue) => {
-                                    setValue("clientId", currentValue === field.value ? "" : currentValue);
+                                    setValue("clientId", currentValue === field.value ? "" : currentValue, { shouldValidate: true, shouldDirty: true });
                                     setOpenClientCombobox(false);
                                   }}
                                 >
@@ -229,6 +259,13 @@ export default function NewProjectPage() {
                                 </CommandItem>
                               ))}
                             </CommandGroup>
+                            <CommandItem
+                                onSelect={handleOpenClientModal}
+                                className="cursor-pointer text-primary hover:bg-accent/50"
+                              >
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                Crear Nuevo Cliente
+                              </CommandItem>
                           </CommandList>
                         </Command>
                       </PopoverContent>
@@ -239,7 +276,7 @@ export default function NewProjectPage() {
               </div>
               <div className="md:w-1/3 space-y-2">
                 <Label htmlFor="projectNumber">Número de Proyecto <span className="text-destructive">*</span></Label>
-                <Input id="projectNumber" {...register("projectNumber")} placeholder="Ej: P2024-001" />
+                <Input id="projectNumber" {...register("projectNumber")} placeholder="Ej: P2024-001" disabled={addClientMutation.isPending} />
                 {errors.projectNumber && <p className="text-sm text-destructive">{errors.projectNumber.message}</p>}
               </div>
             </div>
@@ -248,7 +285,7 @@ export default function NewProjectPage() {
             <div className="flex flex-col md:flex-row gap-6">
               <div className="md:w-1/2 space-y-2">
                 <Label htmlFor="glosa">Glosa / Descripción Breve</Label>
-                <Textarea id="glosa" {...register("glosa")} placeholder="Descripción corta o notas iniciales del proyecto" />
+                <Textarea id="glosa" {...register("glosa")} placeholder="Descripción corta o notas iniciales del proyecto" disabled={addClientMutation.isPending} />
                 {errors.glosa && <p className="text-sm text-destructive">{errors.glosa.message}</p>}
               </div>
               <div className="md:w-1/4 space-y-2">
@@ -264,6 +301,7 @@ export default function NewProjectPage() {
                         onChange={(e) => field.onChange(e.target.value ? parseISO(e.target.value) : null)}
                         onBlur={field.onBlur}
                         ref={field.ref}
+                        disabled={addClientMutation.isPending}
                         />
                     )}
                 />
@@ -275,7 +313,7 @@ export default function NewProjectPage() {
                   name="status"
                   control={control}
                   render={({ field }) => (
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={addClientMutation.isPending}>
                       <SelectTrigger id="status">
                         <SelectValue placeholder="Seleccionar estado" />
                       </SelectTrigger>
@@ -297,22 +335,22 @@ export default function NewProjectPage() {
             <div className="grid grid-cols-1 md:grid-cols-9 gap-6">
               <div className="md:col-span-3 space-y-2"> {/* 3/9 = 1/3 */}
                 <Label htmlFor="subtotal">Subtotal <span className="text-destructive">*</span></Label>
-                <Input id="subtotal" type="number" step="any" {...register("subtotal")} placeholder="0" />
+                <Input id="subtotal" type="number" step="any" {...register("subtotal")} placeholder="0" disabled={addClientMutation.isPending}/>
                 {errors.subtotal && <p className="text-sm text-destructive">{errors.subtotal.message}</p>}
               </div>
               <div className="md:col-span-2 space-y-2"> {/* 2/9 */}
                 <Label htmlFor="taxRate">IVA (%) <span className="text-destructive">*</span></Label>
-                <Input id="taxRate" type="number" step="any" {...register("taxRate")} placeholder="19" />
+                <Input id="taxRate" type="number" step="any" {...register("taxRate")} placeholder="19" disabled={addClientMutation.isPending}/>
                 {errors.taxRate && <p className="text-sm text-destructive">{errors.taxRate.message}</p>}
               </div>
               <div className="md:col-span-2 space-y-2"> {/* 2/9 */}
                 <Label htmlFor="windowsCount">N° Ventanas</Label>
-                <Input id="windowsCount" type="number" {...register("windowsCount")} placeholder="0" />
+                <Input id="windowsCount" type="number" {...register("windowsCount")} placeholder="0" disabled={addClientMutation.isPending}/>
                 {errors.windowsCount && <p className="text-sm text-destructive">{errors.windowsCount.message}</p>}
               </div>
               <div className="md:col-span-2 space-y-2"> {/* 2/9 */}
                 <Label htmlFor="squareMeters">M²</Label>
-                <Input id="squareMeters" type="number" step="any" {...register("squareMeters")} placeholder="0" />
+                <Input id="squareMeters" type="number" step="any" {...register("squareMeters")} placeholder="0" disabled={addClientMutation.isPending}/>
                 {errors.squareMeters && <p className="text-sm text-destructive">{errors.squareMeters.message}</p>}
               </div>
             </div>
@@ -321,17 +359,17 @@ export default function NewProjectPage() {
             <div className="flex flex-col md:flex-row gap-6">
               <div className="md:w-1/3 space-y-2">
                 <Label htmlFor="phone">Teléfono (Proyecto)</Label>
-                <Input id="phone" {...register("phone")} placeholder="Ej: +56912345678" />
+                <Input id="phone" {...register("phone")} placeholder="Ej: +56912345678" disabled={addClientMutation.isPending}/>
                 {errors.phone && <p className="text-sm text-destructive">{errors.phone.message}</p>}
               </div>
               <div className="md:w-1/3 space-y-2">
                 <Label htmlFor="commune">Comuna</Label>
-                <Input id="commune" {...register("commune")} placeholder="Ej: Las Condes" />
+                <Input id="commune" {...register("commune")} placeholder="Ej: Las Condes" disabled={addClientMutation.isPending}/>
                 {errors.commune && <p className="text-sm text-destructive">{errors.commune.message}</p>}
               </div>
               <div className="md:w-1/3 space-y-2">
                 <Label htmlFor="region">Región</Label>
-                <Input id="region" {...register("region")} placeholder="Ej: RM" />
+                <Input id="region" {...register("region")} placeholder="Ej: RM" disabled={addClientMutation.isPending}/>
                 {errors.region && <p className="text-sm text-destructive">{errors.region.message}</p>}
               </div>
             </div>
@@ -340,7 +378,7 @@ export default function NewProjectPage() {
             <div className="flex flex-col md:flex-row gap-6">
               <div className="md:w-1/2 space-y-2">
                 <Label htmlFor="address">Dirección (Proyecto)</Label>
-                <Textarea id="address" {...register("address")} placeholder="Dirección donde se realizará el proyecto" />
+                <Textarea id="address" {...register("address")} placeholder="Dirección donde se realizará el proyecto" disabled={addClientMutation.isPending}/>
                 {errors.address && <p className="text-sm text-destructive">{errors.address.message}</p>}
               </div>
             </div>
@@ -362,18 +400,36 @@ export default function NewProjectPage() {
 
 
             <div className="flex justify-end gap-4 pt-8">
-              <Button type="button" variant="outline" onClick={() => router.push('/projects')} disabled={addProjectMutation.isPending}>
+              <Button type="button" variant="outline" onClick={() => router.push('/projects')} disabled={addProjectMutation.isPending || isProjectSubmitting || addClientMutation.isPending}>
                 <XCircle className="mr-2 h-5 w-5" />
                 Cancelar
               </Button>
-              <Button type="submit" disabled={addProjectMutation.isPending || isSubmitting}>
-                {addProjectMutation.isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Save className="mr-2 h-5 w-5" />}
+              <Button type="submit" disabled={addProjectMutation.isPending || isProjectSubmitting || addClientMutation.isPending}>
+                {(addProjectMutation.isPending || isProjectSubmitting) ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Save className="mr-2 h-5 w-5" />}
                 Guardar Proyecto
               </Button>
             </div>
           </form>
         </CardContent>
       </Card>
+
+      <ClientModal 
+        isOpen={isClientModalOpen} 
+        onClose={handleCloseClientModal} 
+        onSave={handleSaveNewClientFromModal} 
+      />
     </div>
   );
 }
+_SUBCOMMENTS_
+He añadido la opción "Crear Nuevo Cliente" al final de la lista desplegable del selector de clientes en la página "Nuevo Proyecto".
+Al seleccionar esta opción:
+1. Se cierra el desplegable de clientes.
+2. Se abre el modal `ClientModal` para que puedas ingresar los datos del nuevo cliente.
+3. Una vez guardado el nuevo cliente:
+    * Se cierra el modal.
+    * La lista de clientes en el desplegable se actualiza.
+    * El cliente recién creado se selecciona automáticamente en el formulario del proyecto.
+    * Se muestra una notificación de éxito.
+
+También he deshabilitado los campos del formulario de proyecto mientras el modal de cliente está abierto o se está procesando la creación de un nuevo cliente, para evitar interacciones conflictivas.
