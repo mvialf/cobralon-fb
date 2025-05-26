@@ -62,11 +62,10 @@ export default function SettingsPage() {
 
       const importPromises = rawClientsToImport.map(item => {
         if (!item || typeof item.name !== 'string' || item.name.trim() === '') {
-          errorCount++;
           const msg = `Cliente omitido: falta 'name' o es inválido. ID: ${item?.id || 'N/A'}`;
-          errorMessages.push(msg);
-          console.error(msg, item);
-          return Promise.reject(new Error(msg)); // Skip this item
+          // errorMessages.push(msg); // Moved to allSettled handler
+          // console.error(msg, item); // Moved to allSettled handler
+          return Promise.reject(new Error(msg));
         }
 
         const clientPayload: ClientImportData = {
@@ -77,7 +76,6 @@ export default function SettingsPage() {
           clientPayload.id = item.id;
         }
         
-        // Handle optional fields, allowing null
         if (item.hasOwnProperty('phone')) {
             clientPayload.phone = item.phone === null ? null : String(item.phone);
         }
@@ -98,7 +96,9 @@ export default function SettingsPage() {
           }
         }
         
-        return addClient(clientPayload);
+        return addClient(clientPayload).catch(err => { 
+          throw new Error(`Error al guardar cliente '${item.name}': ${err.message}`);
+        });
       });
 
       const results = await Promise.allSettled(importPromises);
@@ -106,14 +106,11 @@ export default function SettingsPage() {
       results.forEach(result => {
         if (result.status === 'fulfilled') {
           successCount++;
-        } else {
-          // Errors for items that passed initial validation but failed at service level
-          // Errors for items that failed initial validation (like missing name) are already counted
-          if (!result.reason.message.startsWith("Cliente omitido:")) {
-             errorCount++; // Increment only if not already counted
-             errorMessages.push(result.reason.message || 'Error desconocido durante la importación del cliente.');
-          }
-          console.error("Error al importar cliente (desde addClient):", result.reason);
+        } else { // status === 'rejected'
+          errorCount++;
+          const errorMessage = result.reason?.message || 'Error desconocido durante la importación del cliente.';
+          errorMessages.push(errorMessage);
+          console.error("Error en la importación de cliente:", result.reason);
         }
       });
       
@@ -132,7 +129,7 @@ export default function SettingsPage() {
     } catch (error: any) {
       console.error("Error durante la importación de clientes:", error);
       toast({
-        title: "Error de Importación",
+        title: "Error de Importación General",
         description: `No se pudo importar clientes: ${error.message}`,
         variant: "destructive",
       });
@@ -162,119 +159,113 @@ export default function SettingsPage() {
         throw new Error("El archivo JSON de proyectos debe contener un array.");
       }
 
-      // Pre-filter invalid items (non-objects, null, or empty objects)
       const validProjectItems = projectsToImportJSON.filter(item => {
         if (typeof item !== 'object' || item === null || Object.keys(item).length === 0) {
-          errorCount++;
+          // errorCount++; // Moved to allSettled handler if we decide to reject for these
           const msg = `Item omitido: no es un objeto de proyecto válido o está vacío. Item: ${JSON.stringify(item)}`;
-          errorMessages.push(msg);
+          errorMessages.push(msg); // Keep this for summary, but it won't be part of Promise.allSettled rejections
           console.warn(msg);
           return false;
         }
         return true;
       });
 
-      const results = await Promise.allSettled(
-        validProjectItems.map(proj => {
-          // --- Validation ---
-          const requiredFields: (keyof ProjectImportData)[] = ['projectNumber', 'clientId', 'date', 'subtotal', 'taxRate', 'status', 'classification', 'collect'];
-          const missingFields = requiredFields.filter(field => {
-            const value = proj[field];
-            return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
-          });
-          
-          if (missingFields.length > 0) {
-            errorCount++;
-            const msg = `Proyecto '${proj.projectNumber || 'Desconocido'}' omitido: faltan campos obligatorios: ${missingFields.join(', ')}.`;
-            errorMessages.push(msg);
-            console.error(msg, proj);
-            return Promise.reject(new Error(msg));
-          }
+      const importPromises = validProjectItems.map(async (proj) => {
+        const currentProjTyped = proj as ProjectImportData;
 
-          // --- Data Preparation ---
-          let projectDate: Date;
+        // --- Validation ---
+        const requiredFields: (keyof ProjectImportData)[] = ['projectNumber', 'clientId', 'date', 'subtotal', 'taxRate', 'status', 'classification', 'collect'];
+        const missingFields = requiredFields.filter(field => {
+          const value = currentProjTyped[field];
+          return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
+        });
+        
+        if (missingFields.length > 0) {
+          const msg = `Proyecto '${currentProjTyped.projectNumber || 'Desconocido'}' omitido: faltan campos obligatorios: ${missingFields.join(', ')}.`;
+          throw new Error(msg); // This will cause the promise for this item to be rejected
+        }
+
+        // --- Data Preparation ---
+        let projectDate: Date;
+        try {
+          projectDate = new Date(currentProjTyped.date as string);
+          if (isNaN(projectDate.getTime())) throw new Error('Formato de fecha inválido para "date"');
+        } catch (e: any) {
+          throw new Error(`Proyecto '${currentProjTyped.projectNumber}': Fecha de inicio inválida. ${e.message}. Valor: ${currentProjTyped.date}`);
+        }
+        
+        let projectEndDate: Date | undefined = undefined;
+        if (currentProjTyped.endDate) {
           try {
-            projectDate = new Date(proj.date); // Assumes date is YYYY-MM-DD or full ISO string
-            if (isNaN(projectDate.getTime())) throw new Error('Invalid date format for "date"');
+            projectEndDate = new Date(currentProjTyped.endDate as string);
+            if (isNaN(projectEndDate.getTime())) {
+               console.warn(`Proyecto '${currentProjTyped.projectNumber}': Fecha de fin inválida, se omitirá. Valor:`, currentProjTyped.endDate);
+               projectEndDate = undefined;
+            }
           } catch (e) {
-            errorCount++;
-            const msg = `Proyecto '${proj.projectNumber}': Fecha de inicio inválida. Formato esperado YYYY-MM-DD o ISO. Valor: ${proj.date}`;
-            errorMessages.push(msg);
-            console.error(msg, proj.date);
-            return Promise.reject(new Error(msg));
+            console.warn(`Proyecto '${currentProjTyped.projectNumber}': Error al parsear fecha de fin, se omitirá. Valor:`, currentProjTyped.endDate);
+            projectEndDate = undefined;
           }
-          
-          let projectEndDate: Date | undefined = undefined;
-          if (proj.endDate) {
-            try {
-              projectEndDate = new Date(proj.endDate);
-              if (isNaN(projectEndDate.getTime())) {
-                console.warn(`Proyecto '${proj.projectNumber}': Fecha de fin inválida, se omitirá. Valor:`, proj.endDate);
-                projectEndDate = undefined;
+        }
+
+        let projectCreatedAt: Date | undefined = undefined;
+        if (currentProjTyped.createdAt) {
+          try {
+              projectCreatedAt = new Date(currentProjTyped.createdAt as string);
+              if (isNaN(projectCreatedAt.getTime())) {
+                  console.warn(`Proyecto '${currentProjTyped.projectNumber}': Fecha de creación inválida, se usará timestamp del servidor. Valor:`, currentProjTyped.createdAt);
+                  projectCreatedAt = undefined;
               }
-            } catch (e) {
-              console.warn(`Proyecto '${proj.projectNumber}': Error al parsear fecha de fin, se omitirá. Valor:`, proj.endDate);
-              projectEndDate = undefined;
-            }
+          } catch(e) {
+              console.warn(`Proyecto '${currentProjTyped.projectNumber}': Error al parsear fecha de creación, se usará timestamp del servidor. Valor:`, currentProjTyped.createdAt);
+              projectCreatedAt = undefined;
           }
+        }
 
-          let projectCreatedAt: Date | undefined = undefined;
-          if (proj.createdAt) {
-            try {
-                projectCreatedAt = new Date(proj.createdAt);
-                if (isNaN(projectCreatedAt.getTime())) {
-                    console.warn(`Proyecto '${proj.projectNumber}': Fecha de creación inválida, se usará timestamp del servidor. Valor:`, proj.createdAt);
-                    projectCreatedAt = undefined;
-                }
-            } catch(e) {
-                console.warn(`Proyecto '${proj.projectNumber}': Error al parsear fecha de creación, se usará timestamp del servidor. Valor:`, proj.createdAt);
-                projectCreatedAt = undefined;
-            }
-          }
-
-
-          const projectDataPayload: ProjectImportData = {
-            id: (proj.id && typeof proj.id === 'string') ? proj.id.trim() : undefined,
-            projectNumber: String(proj.projectNumber).trim(),
-            clientId: String(proj.clientId).trim(),
-            date: projectDate,
-            subtotal: Number(proj.subtotal),
-            taxRate: Number(proj.taxRate),
-            status: proj.status as ProjectStatus,
-            classification: proj.classification as ProjectClassification,
-            collect: Boolean(proj.collect), // Ensured by requiredFields check
-            
-            description: proj.description ? String(proj.description) : '',
-            glosa: proj.glosa ? String(proj.glosa) : '',
-            endDate: projectEndDate,
-            createdAt: projectCreatedAt, // Will be handled by service if undefined
-            phone: proj.phone ? String(proj.phone) : '',
-            address: proj.address ? String(proj.address) : '',
-            commune: proj.commune ? String(proj.commune) : '',
-            region: proj.region ? String(proj.region) : 'RM', // Default if not provided
-            windowsCount: proj.windowsCount ? Number(proj.windowsCount) : 0,
-            squareMeters: proj.squareMeters ? Number(proj.squareMeters) : 0,
-            uninstall: proj.hasOwnProperty('uninstall') ? Boolean(proj.uninstall) : false,
-            uninstallTypes: Array.isArray(proj.uninstallTypes) ? proj.uninstallTypes.map(String) : [],
-            uninstallOther: proj.uninstallOther ? String(proj.uninstallOther) : '',
-            isHidden: proj.hasOwnProperty('isHidden') ? Boolean(proj.isHidden) : false,
-          };
+        const projectDataPayload: ProjectImportData = {
+          id: (currentProjTyped.id && typeof currentProjTyped.id === 'string') ? currentProjTyped.id.trim() : undefined,
+          projectNumber: String(currentProjTyped.projectNumber).trim(),
+          clientId: String(currentProjTyped.clientId).trim(),
+          date: projectDate,
+          subtotal: Number(currentProjTyped.subtotal),
+          taxRate: Number(currentProjTyped.taxRate),
+          status: currentProjTyped.status as ProjectStatus,
+          classification: currentProjTyped.classification as ProjectClassification,
+          collect: Boolean(currentProjTyped.collect),
           
-          return addProject(projectDataPayload);
-        })
-      );
+          description: currentProjTyped.description ? String(currentProjTyped.description) : '',
+          glosa: currentProjTyped.glosa ? String(currentProjTyped.glosa) : '',
+          endDate: projectEndDate,
+          createdAt: projectCreatedAt,
+          phone: currentProjTyped.phone ? String(currentProjTyped.phone) : '',
+          address: currentProjTyped.address ? String(currentProjTyped.address) : '',
+          commune: currentProjTyped.commune ? String(currentProjTyped.commune) : '',
+          region: currentProjTyped.region ? String(currentProjTyped.region) : 'RM',
+          windowsCount: currentProjTyped.windowsCount ? Number(currentProjTyped.windowsCount) : 0,
+          squareMeters: currentProjTyped.squareMeters ? Number(currentProjTyped.squareMeters) : 0,
+          uninstall: currentProjTyped.hasOwnProperty('uninstall') ? Boolean(currentProjTyped.uninstall) : false,
+          uninstallTypes: Array.isArray(currentProjTyped.uninstallTypes) ? currentProjTyped.uninstallTypes.map(String) : [],
+          uninstallOther: currentProjTyped.uninstallOther ? String(currentProjTyped.uninstallOther) : '',
+          isHidden: currentProjTyped.hasOwnProperty('isHidden') ? Boolean(currentProjTyped.isHidden) : false,
+        };
+        
+        try {
+          return await addProject(projectDataPayload);
+        } catch (serviceError: any) {
+          throw new Error(`Error al guardar proyecto '${projectDataPayload.projectNumber}': ${serviceError.message}`);
+        }
+      });
+
+      const results = await Promise.allSettled(importPromises);
 
       results.forEach(result => {
         if (result.status === 'fulfilled') {
           successCount++;
-        } else {
-          // errorCount was incremented by pre-filter or validation errors
-          // This path handles errors from addProject service itself if not already caught
-          if (!errorMessages.some(msg => result.reason.message.includes(msg) || msg.includes(result.reason.message))) {
-            errorCount++; 
-            errorMessages.push(result.reason.message || 'Error desconocido durante la importación del proyecto.');
-          }
-          console.error("Error al importar proyecto (desde addProject):", result.reason);
+        } else { // status === 'rejected'
+          errorCount++;
+          const errorMessage = result.reason?.message || 'Error desconocido durante la importación del proyecto.';
+          errorMessages.push(errorMessage);
+          console.error("Error en la importación de proyecto:", result.reason); 
         }
       });
       
@@ -291,9 +282,9 @@ export default function SettingsPage() {
       });
 
     } catch (error: any) {
-      console.error("Error durante la importación de proyectos:", error);
+      console.error("Error general durante la importación de proyectos:", error);
       toast({
-        title: "Error de Importación",
+        title: "Error de Importación General",
         description: `No se pudo importar proyectos: ${error.message}`,
         variant: "destructive",
       });
