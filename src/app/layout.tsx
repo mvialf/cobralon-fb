@@ -5,7 +5,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { CalendarDays, Settings } from 'lucide-react';
+import { CalendarDays, Settings, Users } from 'lucide-react'; // Added Users icon
 
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
@@ -31,11 +31,6 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-// Metadata no puede estar en un Client Component directamente,
-// pero Next.js lo manejará si se exporta desde un Server Component o layout.tsx.
-// Como este es el RootLayout y ahora es "use client",
-// la exportación de metadata aquí podría no ser ideal para SEO estático si no se maneja bien por Next.js.
-// Por ahora lo dejamos, pero en apps complejas se podría separar.
 /*
 export const metadata: Metadata = {
   title: 'CalReact - Calendario Avanzado',
@@ -74,6 +69,18 @@ export default function RootLayout({
                     <Link href="/">
                       <CalendarDays />
                       <span>Calendario</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton 
+                    asChild 
+                    isActive={pathname === '/clients'}
+                    tooltip={{children: "Clientes", side:"right"}}
+                  >
+                    <Link href="/clients">
+                      <Users />
+                      <span>Clientes</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
