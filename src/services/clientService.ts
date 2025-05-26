@@ -25,9 +25,9 @@ const clientFromDoc = (docSnapshot: any): Client => {
     name: data.name,
     phone: data.phone,
     email: data.email,
-    address: data.address, // Added address to match UI
-    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(), // Default if not present
-    updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(), // Default if not present
+    address: data.address,
+    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
+    updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(),
   };
 };
 
@@ -41,12 +41,12 @@ export const getClients = async (): Promise<Client[]> => {
 
 export const addClient = async (clientData: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>): Promise<Client> => {
   const clientsCollectionRef = collection(db, CLIENTS_COLLECTION);
-  // Ensure address is included if it's part of clientData, default to undefined if not
-  const dataToSave: Partial<ClientDocument> = {
+  // name is required, others are optional and will be stored if provided.
+  const dataToSave: Omit<ClientDocument, 'id'> = {
     name: clientData.name,
-    phone: clientData.phone || undefined,
-    email: clientData.email || undefined,
-    address: clientData.address || undefined, // Ensure address is handled
+    phone: clientData.phone,
+    email: clientData.email,
+    address: clientData.address,
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
   };
@@ -58,10 +58,9 @@ export const addClient = async (clientData: Omit<Client, 'id' | 'createdAt' | 'u
 export const updateClient = async (clientId: string, clientData: Partial<Omit<Client, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> => {
   const clientDocRef = doc(db, CLIENTS_COLLECTION, clientId);
   const dataToUpdate: Partial<ClientDocument> = {
-    ...clientData, // Spread all provided clientData
+    ...clientData, 
     updatedAt: serverTimestamp() as Timestamp,
   };
-  // Remove id if it accidentally got in clientData
   delete (dataToUpdate as any).id; 
   delete (dataToUpdate as any).createdAt;
 
@@ -73,9 +72,6 @@ export const deleteClient = async (clientId: string): Promise<void> => {
   const projectsToDelete = await getProjects(clientId);
 
   // 2. Delete each project (which will in turn delete its payments and afterSales)
-  // Use Promise.all to run deletions in parallel for better performance,
-  // but be aware that if one fails, others might have completed.
-  // For true atomicity, Cloud Functions are better.
   const deletePromises = projectsToDelete.map(project => deleteProject(project.id));
   await Promise.all(deletePromises);
 
