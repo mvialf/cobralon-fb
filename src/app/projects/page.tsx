@@ -2,12 +2,13 @@
 // src/app/projects/page.tsx
 "use client";
 import { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient as useQueryClientHook } from '@tanstack/react-query'; // Renamed to avoid conflict
+import Link from 'next/link'; // Import Link
+import { useQuery, useMutation, useQueryClient as useQueryClientHook } from '@tanstack/react-query';
 import type { ProjectType } from '@/types/project';
 import type { Client } from '@/types/client';
 import { getProjects, addProject, updateProject, deleteProject } from '@/services/projectService';
 import { getClients } from '@/services/clientService';
-import { format as formatDate } from '@/lib/calendar-utils'; // Assuming es locale is default
+import { format as formatDate } from '@/lib/calendar-utils';
 import { es } from 'date-fns/locale';
 
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -24,7 +25,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Edit, Trash2, PlusCircle, Briefcase, Loader2, Search } from 'lucide-react';
-import ProjectModal from '@/components/project-modal';
+import ProjectModal from '@/components/project-modal'; // Se mantiene por si se usa para editar
 import { useToast } from '@/hooks/use-toast';
 
 // Helper to format currency (Chilean Pesos example)
@@ -55,14 +56,14 @@ export default function ProjectsPage() {
   const queryClient = useQueryClientHook();
 
   const [filterText, setFilterText] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<ProjectType | undefined>(undefined);
+  const [isModalOpen, setIsModalOpen] = useState(false); // Se mantiene por si se usa para editar
+  const [selectedProject, setSelectedProject] = useState<ProjectType | undefined>(undefined); // Se mantiene
   const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
 
 
   const { data: projects = [], isLoading: isLoadingProjects, isError: isErrorProjects, error: errorProjects } = useQuery<ProjectType[], Error>({
     queryKey: ['projects'],
-    queryFn: () => getProjects(), // Fetches all projects
+    queryFn: () => getProjects(),
   });
 
   const { data: clients = [], isLoading: isLoadingClients } = useQuery<Client[], Error>({
@@ -75,18 +76,8 @@ export default function ProjectsPage() {
     return new Map(clients.map(client => [client.id, client.name]));
   }, [clients, isLoadingClients]);
 
-  const addProjectMutation = useMutation({
-    mutationFn: (projectData: Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt'>) => addProject(projectData),
-    onSuccess: (newProject) => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      toast({ title: "Proyecto Añadido", description: `"${newProject.projectNumber}" ha sido añadido.` });
-      handleCloseModal();
-    },
-    onError: (err: Error) => {
-      toast({ title: "Error", description: `No se pudo añadir el proyecto: ${err.message}`, variant: "destructive" });
-    },
-  });
-
+  // addProjectMutation se moverá o duplicará en la página de nuevo proyecto
+  // Mantenemos update y delete aquí por ahora para la tabla.
   const updateProjectMutation = useMutation({
     mutationFn: (variables: { projectId: string; projectData: Partial<Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt'>> }) =>
       updateProject(variables.projectId, variables.projectData),
@@ -94,7 +85,7 @@ export default function ProjectsPage() {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       const updatedProject = projects.find(p => p.id === variables.projectId);
       toast({ title: "Proyecto Actualizado", description: `"${updatedProject?.projectNumber || 'El proyecto'}" ha sido actualizado.` });
-      handleCloseModal();
+      handleCloseModal(); // Asumiendo que el modal de edición se cierra
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: `No se pudo actualizar el proyecto: ${err.message}`, variant: "destructive" });
@@ -102,7 +93,7 @@ export default function ProjectsPage() {
   });
 
   const deleteProjectMutation = useMutation({
-    mutationFn: deleteProject, 
+    mutationFn: deleteProject,
     onSuccess: (_, projectId) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       const deletedProject = projects.find(p => p.id === projectId);
@@ -118,6 +109,7 @@ export default function ProjectsPage() {
     },
   });
 
+  // Estas funciones de modal son para la edición, las mantenemos por ahora
   const handleOpenModal = (project?: ProjectType) => {
     setSelectedProject(project);
     setIsModalOpen(true);
@@ -129,19 +121,18 @@ export default function ProjectsPage() {
   };
 
   const handleDeleteProject = (projectId: string) => {
+    // TODO: Añadir confirmación
     deleteProjectMutation.mutate(projectId);
   };
 
-  const handleSaveProject = (savedProject: ProjectType) => {
+  const handleSaveProjectFromModal = (savedProject: ProjectType) => { // Renombrado para evitar conflicto
     if (savedProject.id) {
       const { id, ...projectData } = savedProject;
       updateProjectMutation.mutate({ projectId: id, projectData });
-    } else {
-      const { id, ...newProjectData } = savedProject;
-      addProjectMutation.mutate(newProjectData as Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt'>);
     }
+    // La lógica de añadir se mueve a la nueva página
   };
-  
+
   const filteredProjects = useMemo(() => projects.filter(project => {
     const clientName = clientMap.get(project.clientId)?.toLowerCase() || '';
     return (
@@ -180,7 +171,7 @@ export default function ProjectsPage() {
   }
 
   const isLoading = isLoadingProjects || isLoadingClients;
-  const isMutating = addProjectMutation.isPending || updateProjectMutation.isPending || deleteProjectMutation.isPending;
+  const isMutating = updateProjectMutation.isPending || deleteProjectMutation.isPending;
 
   return (
     <div className="flex flex-col h-full p-4 md:p-6 lg:p-8">
@@ -192,9 +183,11 @@ export default function ProjectsPage() {
             <p className="text-muted-foreground">Administra tus proyectos y su información.</p>
           </div>
         </div>
-        <Button onClick={() => handleOpenModal()} disabled={isMutating || isLoading}>
-          {isMutating && addProjectMutation.isPending && !selectedProject ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
-          Nuevo Proyecto
+        <Button asChild disabled={isLoading}>
+          <Link href="/projects/new">
+            <PlusCircle className="mr-2 h-5 w-5" />
+            Nuevo Proyecto
+          </Link>
         </Button>
       </header>
       <main className="flex-grow">
@@ -210,14 +203,13 @@ export default function ProjectsPage() {
                 disabled={isLoading}
               />
             </div>
-            {/* Add other toolbar items here if needed, e.g., bulk actions button */}
           </div>
           <CardContent className="pt-6">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10 text-center">
-                     <Checkbox 
+                     <Checkbox
                         checked={isAllSelected}
                         onCheckedChange={(checked) => handleSelectAllRows(Boolean(checked))}
                         aria-label="Seleccionar todas las filas"
@@ -244,13 +236,13 @@ export default function ProjectsPage() {
                     const isRowMutating = (updateProjectMutation.variables?.projectId === project.id || deleteProjectMutation.variables === project.id);
 
                     return (
-                      <TableRow 
-                        key={project.id} 
+                      <TableRow
+                        key={project.id}
                         className={isRowMutating ? 'opacity-50' : ''}
                         data-state={selectedRows[project.id] ? 'selected' : undefined}
                       >
                         <TableCell className="text-center">
-                          <Checkbox 
+                          <Checkbox
                             checked={selectedRows[project.id] || false}
                             onCheckedChange={(checked) => handleSelectRow(project.id, Boolean(checked))}
                             aria-label={`Seleccionar proyecto ${project.projectNumber}`}
@@ -302,16 +294,15 @@ export default function ProjectsPage() {
           </CardContent>
         </Card>
       </main>
-      {isModalOpen && (
-        <ProjectModal 
-            isOpen={isModalOpen} 
-            onClose={handleCloseModal} 
-            onSave={handleSaveProject} 
+      {isModalOpen && ( // El modal de edición se mantiene aquí
+        <ProjectModal
+            isOpen={isModalOpen}
+            onClose={handleCloseModal}
+            onSave={handleSaveProjectFromModal}
             projectData={selectedProject}
-            clients={clients} 
+            clients={clients}
         />
       )}
     </div>
   );
 }
-
