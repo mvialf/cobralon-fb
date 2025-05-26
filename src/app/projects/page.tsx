@@ -24,7 +24,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Edit, Trash2, PlusCircle, Briefcase, Loader2, Search } from 'lucide-react';
-import ProjectModal from '@/components/project-modal'; // Placeholder for now
+import ProjectModal from '@/components/project-modal';
 import { useToast } from '@/hooks/use-toast';
 
 // Helper to format currency (Chilean Pesos example)
@@ -102,11 +102,16 @@ export default function ProjectsPage() {
   });
 
   const deleteProjectMutation = useMutation({
-    mutationFn: deleteProject, // Assumes deleteProject handles cascade internally
+    mutationFn: deleteProject, 
     onSuccess: (_, projectId) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       const deletedProject = projects.find(p => p.id === projectId);
       toast({ title: "Proyecto Eliminado", description: `"${deletedProject?.projectNumber || 'El proyecto'}" ha sido eliminado.`, variant: "destructive" });
+      setSelectedRows(prev => {
+        const newSelected = {...prev};
+        delete newSelected[projectId];
+        return newSelected;
+      });
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: `No se pudo eliminar el proyecto: ${err.message}`, variant: "destructive" });
@@ -124,7 +129,6 @@ export default function ProjectsPage() {
   };
 
   const handleDeleteProject = (projectId: string) => {
-    // Optional: Add a confirmation dialog here
     deleteProjectMutation.mutate(projectId);
   };
 
@@ -138,14 +142,14 @@ export default function ProjectsPage() {
     }
   };
   
-  const filteredProjects = projects.filter(project => {
+  const filteredProjects = useMemo(() => projects.filter(project => {
     const clientName = clientMap.get(project.clientId)?.toLowerCase() || '';
     return (
       project.projectNumber.toLowerCase().includes(filterText.toLowerCase()) ||
       clientName.includes(filterText.toLowerCase()) ||
       (project.description && project.description.toLowerCase().includes(filterText.toLowerCase()))
     );
-  });
+  }), [projects, clientMap, filterText]);
 
   const handleSelectAllRows = (checked: boolean) => {
     const newSelectedRows: Record<string, boolean> = {};
@@ -188,7 +192,7 @@ export default function ProjectsPage() {
             <p className="text-muted-foreground">Administra tus proyectos y su información.</p>
           </div>
         </div>
-        <Button onClick={() => handleOpenModal()} disabled={isMutating}>
+        <Button onClick={() => handleOpenModal()} disabled={isMutating || isLoading}>
           {isMutating && addProjectMutation.isPending && !selectedProject ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
           Nuevo Proyecto
         </Button>
@@ -203,52 +207,38 @@ export default function ProjectsPage() {
                 value={filterText}
                 onChange={(e) => setFilterText(e.target.value)}
                 className="pl-8"
+                disabled={isLoading}
               />
             </div>
             {/* Add other toolbar items here if needed, e.g., bulk actions button */}
           </div>
           <CardContent className="pt-6">
-            {isLoading ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10 text-center"><Checkbox disabled /></TableHead>
-                    <TableHead>Nº Proyecto / Cliente</TableHead>
-                    <TableHead>F. Inicio</TableHead>
-                    <TableHead>V. Total</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Por Cobrar</TableHead>
-                    <TableHead>Abonos</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {[...Array(5)].map((_, i) => <ProjectRowSkeleton key={i} />)}
-                </TableBody>
-              </Table>
-            ) : filteredProjects.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10 text-center">
-                       <Checkbox 
-                          checked={isAllSelected}
-                          onCheckedChange={(checked) => handleSelectAllRows(Boolean(checked))}
-                          aria-label="Seleccionar todas las filas"
-                          data-indeterminate={isIndeterminate ? "true" : undefined}
-                       />
-                    </TableHead>
-                    <TableHead>Nº Proyecto / Cliente</TableHead>
-                    <TableHead>F. Inicio</TableHead>
-                    <TableHead className="text-right">V. Total</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Por Cobrar</TableHead>
-                    <TableHead className="text-right">Abonos</TableHead>
-                    <TableHead className="text-right w-[120px]">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredProjects.map((project) => {
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10 text-center">
+                     <Checkbox 
+                        checked={isAllSelected}
+                        onCheckedChange={(checked) => handleSelectAllRows(Boolean(checked))}
+                        aria-label="Seleccionar todas las filas"
+                        data-indeterminate={isIndeterminate ? "true" : undefined}
+                        disabled={isLoading || filteredProjects.length === 0}
+                     />
+                  </TableHead>
+                  <TableHead>Nº Proyecto / Cliente</TableHead>
+                  <TableHead>F. Inicio</TableHead>
+                  <TableHead className="text-right">V. Total</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead className="text-right">Por Cobrar</TableHead>
+                  <TableHead className="text-right">Abonos</TableHead>
+                  <TableHead className="text-right w-[120px]">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  [...Array(5)].map((_, i) => <ProjectRowSkeleton key={i} />)
+                ) : filteredProjects.length > 0 ? (
+                  filteredProjects.map((project) => {
                     const clientName = clientMap.get(project.clientId) || 'Cliente no encontrado';
                     const abonos = (project.total ?? 0) - (project.balance ?? 0);
                     const isRowMutating = (updateProjectMutation.variables?.projectId === project.id || deleteProjectMutation.variables === project.id);
@@ -264,13 +254,14 @@ export default function ProjectsPage() {
                             checked={selectedRows[project.id] || false}
                             onCheckedChange={(checked) => handleSelectRow(project.id, Boolean(checked))}
                             aria-label={`Seleccionar proyecto ${project.projectNumber}`}
+                            disabled={isMutating}
                           />
                         </TableCell>
                         <TableCell className="font-medium">
                           <div>{project.projectNumber}</div>
                           <div className="text-xs text-muted-foreground">{clientName}</div>
                         </TableCell>
-                        <TableCell>{formatDate(project.date, 'P', { locale: es })}</TableCell>
+                        <TableCell>{project.date ? formatDate(project.date, 'P', { locale: es }) : 'N/A'}</TableCell>
                         <TableCell className="text-right">{formatCurrency(project.total)}</TableCell>
                         <TableCell>
                           <span className={`px-2 py-1 text-xs rounded-full ${
@@ -278,6 +269,7 @@ export default function ProjectsPage() {
                             project.status === 'en progreso' ? 'bg-blue-100 text-blue-700' :
                             project.status === 'cancelado' ? 'bg-red-100 text-red-700' :
                             project.status === 'ingresado' ? 'bg-yellow-100 text-yellow-700' :
+                            project.status === 'pendiente aprobación' ? 'bg-purple-100 text-purple-700' :
                             'bg-gray-100 text-gray-700'
                           }`}>
                             {project.status}
@@ -287,7 +279,7 @@ export default function ProjectsPage() {
                         <TableCell className="text-right">{formatCurrency(abonos)}</TableCell>
                         <TableCell className="text-right space-x-1">
                           <Button variant="outline" size="icon" onClick={() => handleOpenModal(project)} aria-label="Editar proyecto" disabled={isMutating}>
-                            {isRowMutating && updateProjectMutation.variables?.projectId === project.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
+                            {isMutating && updateProjectMutation.variables?.projectId === project.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
                           </Button>
                           <Button variant="destructive" size="icon" onClick={() => handleDeleteProject(project.id)} aria-label="Eliminar proyecto" disabled={isMutating}>
                             {isRowMutating && deleteProjectMutation.variables === project.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
@@ -295,16 +287,18 @@ export default function ProjectsPage() {
                         </TableCell>
                       </TableRow>
                     );
-                  })}
-                </TableBody>
-              </Table>
-            ) : (
-              <div className="text-center py-10 text-muted-foreground">
-                <Briefcase className="mx-auto h-12 w-12 mb-4" />
-                <p className="text-lg font-semibold">No hay proyectos registrados.</p>
-                <p className="text-sm">Empieza añadiendo tu primer proyecto.</p>
-              </div>
-            )}
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                      <Briefcase className="mx-auto h-12 w-12 mb-4" />
+                      <p className="text-lg font-semibold">No hay proyectos registrados.</p>
+                      <p className="text-sm">Empieza añadiendo tu primer proyecto.</p>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       </main>
@@ -314,9 +308,10 @@ export default function ProjectsPage() {
             onClose={handleCloseModal} 
             onSave={handleSaveProject} 
             projectData={selectedProject}
-            clients={clients} // Pass clients for the dropdown in the modal
+            clients={clients} 
         />
       )}
     </div>
   );
 }
+
