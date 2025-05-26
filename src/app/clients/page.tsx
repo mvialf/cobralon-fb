@@ -7,7 +7,7 @@ import type { Client } from '@/types/client';
 import { getClients, addClient, updateClient, deleteClient } from '@/services/clientService';
 
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
   TableHeader,
@@ -117,7 +117,7 @@ export default function ClientsPage() {
 
   const filteredClients = clients.filter(client =>
     client.name.toLowerCase().includes(filterText.toLowerCase()) ||
-    client.email.toLowerCase().includes(filterText.toLowerCase())
+    (client.email && client.email.toLowerCase().includes(filterText.toLowerCase()))
   );
 
   if (isError) {
@@ -160,11 +160,7 @@ export default function ClientsPage() {
               className="max-w-sm"
             />
           </div>
-          <CardHeader>
-            <CardTitle>Lista de Clientes</CardTitle>
-            <CardDescription>Un listado de todos los clientes registrados en el sistema.</CardDescription>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6"> {/* Added pt-6 here for spacing if CardHeader is removed */}
             {isLoading ? (
               <Table>
                 <TableHeader>
