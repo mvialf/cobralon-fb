@@ -6,7 +6,7 @@ export interface Client {
   name: string;
   phone?: string;
   email?: string;
-  address?: string; // Address was already part of the UI, keeping it.
+  // address?: string; // Address was already part of the UI, keeping it. // Removed address
   createdAt?: Date;
   updatedAt?: Date;
 }

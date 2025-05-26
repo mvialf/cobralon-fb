@@ -25,7 +25,7 @@ const clientFromDoc = (docSnapshot: any): Client => {
     name: data.name,
     phone: data.phone,
     email: data.email,
-    address: data.address,
+    // address: data.address, // Removed address
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
     updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(),
   };
@@ -41,12 +41,11 @@ export const getClients = async (): Promise<Client[]> => {
 
 export const addClient = async (clientData: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>): Promise<Client> => {
   const clientsCollectionRef = collection(db, CLIENTS_COLLECTION);
-  // name is required, others are optional and will be stored if provided.
   const dataToSave: Omit<ClientDocument, 'id'> = {
     name: clientData.name,
-    phone: clientData.phone,
-    email: clientData.email,
-    address: clientData.address,
+    phone: clientData.phone || undefined, // Ensure optional fields are handled
+    email: clientData.email || undefined,
+    // address: clientData.address || undefined, // Removed address
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
   };
@@ -57,12 +56,25 @@ export const addClient = async (clientData: Omit<Client, 'id' | 'createdAt' | 'u
 
 export const updateClient = async (clientId: string, clientData: Partial<Omit<Client, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> => {
   const clientDocRef = doc(db, CLIENTS_COLLECTION, clientId);
-  const dataToUpdate: Partial<ClientDocument> = {
-    ...clientData, 
-    updatedAt: serverTimestamp() as Timestamp,
-  };
-  delete (dataToUpdate as any).id; 
-  delete (dataToUpdate as any).createdAt;
+  
+  // Create a new object for dataToUpdate to avoid modifying clientData directly
+  const dataToUpdate: Partial<ClientDocument> = {};
+
+  // Only include fields that are part of ClientDocument
+  if (clientData.hasOwnProperty('name')) {
+    dataToUpdate.name = clientData.name;
+  }
+  if (clientData.hasOwnProperty('phone')) {
+    dataToUpdate.phone = clientData.phone || undefined;
+  }
+  if (clientData.hasOwnProperty('email')) {
+    dataToUpdate.email = clientData.email || undefined;
+  }
+  // if (clientData.hasOwnProperty('address')) { // Removed address
+  //   dataToUpdate.address = clientData.address || undefined;
+  // }
+
+  dataToUpdate.updatedAt = serverTimestamp() as Timestamp;
 
   await updateDoc(clientDocRef, dataToUpdate);
 };
