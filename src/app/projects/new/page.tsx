@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent } from '@/components/ui/card'; // Removed CardHeader, CardTitle, CardDescription as they are not used here directly
+import { Card, CardContent } from '@/components/ui/card'; 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Check, ChevronsUpDown, Loader2, Save, XCircle, PlusCircle } from 'lucide-react';
@@ -92,8 +92,9 @@ export default function NewProjectPage() {
   const queryClient = useQueryClientHook();
   const [openClientCombobox, setOpenClientCombobox] = useState(false);
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  const [isClientSearchActive, setIsClientSearchActive] = useState(false);
 
-  const { data: clients = [], isLoading: isLoadingClients, refetch: refetchClients } = useQuery<Client[], Error>({
+  const { data: clients = [], isLoading: isLoadingClients } = useQuery<Client[], Error>({
     queryKey: ['clients'],
     queryFn: getClients,
   });
@@ -136,7 +137,6 @@ export default function NewProjectPage() {
     mutationFn: (clientData: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>) => addClientService(clientData),
     onSuccess: (newClient) => {
       queryClient.invalidateQueries({ queryKey: ['clients'] }).then(() => {
-         // Ensure clients list is fresh before trying to set value
         setValue("clientId", newClient.id, { shouldValidate: true, shouldDirty: true });
       });
       toast({ title: "Cliente Añadido", description: `"${newClient.name}" ha sido añadido.` });
@@ -182,8 +182,9 @@ export default function NewProjectPage() {
   const selectedClientId = watch("clientId");
 
   const handleOpenClientModal = () => {
-    setOpenClientCombobox(false); // Close combobox
+    setOpenClientCombobox(false); 
     setIsClientModalOpen(true);
+    setIsClientSearchActive(false);
   };
 
   const handleCloseClientModal = () => {
@@ -191,7 +192,6 @@ export default function NewProjectPage() {
   };
 
   const handleSaveNewClientFromModal = (savedClient: Client) => {
-     // The modal might pass an ID if it was somehow pre-filled, but for 'add new' it's usually not there or empty
     const { id, createdAt, updatedAt, ...newClientData } = savedClient;
     addClientMutation.mutate(newClientData as Omit<Client, 'id' | 'createdAt' | 'updatedAt'>);
   };
@@ -217,7 +217,10 @@ export default function NewProjectPage() {
                   name="clientId"
                   control={control}
                   render={({ field }) => (
-                    <Popover open={openClientCombobox} onOpenChange={setOpenClientCombobox}>
+                    <Popover open={openClientCombobox} onOpenChange={(isOpen) => {
+                      setOpenClientCombobox(isOpen);
+                      if (!isOpen) setIsClientSearchActive(false); // Reset search when popover closes
+                    }}>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
@@ -234,31 +237,39 @@ export default function NewProjectPage() {
                       </PopoverTrigger>
                       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                         <Command>
-                          <CommandInput placeholder="Buscar cliente..." />
+                          <CommandInput 
+                            placeholder="Buscar cliente..."
+                            onValueChange={(search) => {
+                              setIsClientSearchActive(search.length > 0);
+                            }}
+                          />
                           <CommandList>
                             <CommandEmpty>
                                 <span className="text-sm">No se encontró ningún cliente.</span>
                             </CommandEmpty>
-                            <CommandGroup>
-                              {clients.map((client) => (
-                                <CommandItem
-                                  key={client.id}
-                                  value={client.id}
-                                  onSelect={(currentValue) => {
-                                    setValue("clientId", currentValue === field.value ? "" : currentValue, { shouldValidate: true, shouldDirty: true });
-                                    setOpenClientCombobox(false);
-                                  }}
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      field.value === client.id ? "opacity-100" : "opacity-0"
-                                    )}
-                                  />
-                                  {client.name}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
+                            {isClientSearchActive && (
+                              <CommandGroup>
+                                {clients.map((client) => (
+                                  <CommandItem
+                                    key={client.id}
+                                    value={client.name} // CMDK uses this for filtering
+                                    onSelect={() => {
+                                      setValue("clientId", client.id, { shouldValidate: true, shouldDirty: true });
+                                      setOpenClientCombobox(false);
+                                      setIsClientSearchActive(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        field.value === client.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {client.name}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
                             <CommandItem
                                 onSelect={handleOpenClientModal}
                                 className="cursor-pointer text-primary hover:bg-accent/50"
@@ -421,3 +432,4 @@ export default function NewProjectPage() {
     </div>
   );
 }
+
