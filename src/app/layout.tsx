@@ -6,7 +6,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { CalendarDays, Settings, Users } from 'lucide-react'; 
+import { Briefcase, CalendarDays, Settings, Users } from 'lucide-react'; 
 import { useState } from 'react'; // For QueryClient
 
 import './globals.css';
@@ -69,6 +69,18 @@ export default function RootLayout({
               </SidebarHeader>
               <SidebarContent>
                 <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={pathname === '/projects'} 
+                      tooltip={{children: "Proyectos", side:"right"}}
+                    >
+                      <Link href="/projects">
+                        <Briefcase />
+                        <span>Proyectos</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       asChild 
