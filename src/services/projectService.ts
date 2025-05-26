@@ -15,6 +15,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import type { ProjectType, ProjectDocument } from '@/types/project';
+import { deletePaymentsForProject } from './paymentService';
+import { deleteAfterSalesForProject } from './afterSalesService';
 
 const PROJECTS_COLLECTION = 'projects';
 
@@ -23,11 +25,11 @@ const projectFromDoc = (docSnapshot: any): ProjectType => {
   return {
     id: docSnapshot.id,
     ...data,
-    date: data.date.toDate(),
+    date: data.date.toDate(), // Should always exist
     endDate: data.endDate instanceof Timestamp ? data.endDate.toDate() : undefined,
-    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : undefined,
-    updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : undefined,
-  } as ProjectType; // Cast because Omit makes some fields incompatible otherwise
+    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
+    updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(),
+  } as ProjectType;
 };
 
 export const getProjects = async (clientId?: string): Promise<ProjectType[]> => {
@@ -61,12 +63,8 @@ export const addProject = async (projectData: Omit<ProjectType, 'id' | 'createdA
     updatedAt: serverTimestamp() as Timestamp,
   };
   const docRef = await addDoc(projectsCollectionRef, dataToSave);
-  return { 
-    id: docRef.id, 
-    ...projectData,
-    createdAt: new Date(), // Approximate client-side
-    updatedAt: new Date()  // Approximate client-side
-  };
+  const newDocSnap = await getDoc(docRef);
+  return projectFromDoc(newDocSnap);
 };
 
 export const updateProject = async (projectId: string, projectData: Partial<Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> => {
@@ -78,13 +76,18 @@ export const updateProject = async (projectId: string, projectData: Partial<Omit
   if (projectData.date) {
     dataToUpdate.date = Timestamp.fromDate(projectData.date);
   }
-  if (projectData.hasOwnProperty('endDate')) { // Check if endDate is explicitly being set (even to null/undefined)
+  if (projectData.hasOwnProperty('endDate')) { 
     dataToUpdate.endDate = projectData.endDate ? Timestamp.fromDate(projectData.endDate) : undefined;
   }
   await updateDoc(projectDocRef, dataToUpdate);
 };
 
 export const deleteProject = async (projectId: string): Promise<void> => {
+  // Cascade delete payments and afterSales for this project
+  await deletePaymentsForProject(projectId);
+  await deleteAfterSalesForProject(projectId);
+
+  // Delete the project itself
   const projectDocRef = doc(db, PROJECTS_COLLECTION, projectId);
   await deleteDoc(projectDocRef);
 };

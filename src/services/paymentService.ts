@@ -11,7 +11,8 @@ import {
   orderBy,
   Timestamp,
   serverTimestamp,
-  getDoc
+  getDoc,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import type { Payment, PaymentDocument } from '@/types/payment';
@@ -54,12 +55,9 @@ export const addPayment = async (paymentData: Omit<Payment, 'id' | 'createdAt' |
     updatedAt: serverTimestamp() as Timestamp,
   };
   const docRef = await addDoc(paymentsCollectionRef, dataToSave);
-  return { 
-    id: docRef.id, 
-    ...paymentData,
-    createdAt: new Date(), // Approximate client-side
-    updatedAt: new Date()  // Approximate client-side
-   };
+  // Fetch the newly created document to get server-generated timestamps
+  const newDocSnap = await getDoc(docRef);
+  return paymentFromDoc(newDocSnap);
 };
 
 export const updatePayment = async (paymentId: string, paymentData: Partial<Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> => {
@@ -77,4 +75,20 @@ export const updatePayment = async (paymentId: string, paymentData: Partial<Omit
 export const deletePayment = async (paymentId: string): Promise<void> => {
   const paymentDocRef = doc(db, PAYMENTS_COLLECTION, paymentId);
   await deleteDoc(paymentDocRef);
+};
+
+export const deletePaymentsForProject = async (projectId: string): Promise<void> => {
+  const paymentsCollectionRef = collection(db, PAYMENTS_COLLECTION);
+  const q = query(paymentsCollectionRef, where('projectId', '==', projectId));
+  const querySnapshot = await getDocs(q);
+  
+  if (querySnapshot.empty) {
+    return;
+  }
+
+  const batch = writeBatch(db);
+  querySnapshot.docs.forEach(docSnapshot => {
+    batch.delete(docSnapshot.ref);
+  });
+  await batch.commit();
 };
