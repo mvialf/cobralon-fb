@@ -1,3 +1,4 @@
+
 // src/app/settings/page.tsx
 "use client"; 
 
@@ -63,8 +64,7 @@ export default function SettingsPage() {
       const importPromises = rawClientsToImport.map(item => {
         if (!item || typeof item.name !== 'string' || item.name.trim() === '') {
           const msg = `Cliente omitido: falta 'name' o es inválido. ID: ${item?.id || 'N/A'}`;
-          // errorMessages.push(msg); // Moved to allSettled handler
-          // console.error(msg, item); // Moved to allSettled handler
+          // This error is handled by Promise.allSettled's rejection case
           return Promise.reject(new Error(msg));
         }
 
@@ -97,7 +97,7 @@ export default function SettingsPage() {
         }
         
         return addClient(clientPayload).catch(err => { 
-          throw new Error(`Error al guardar cliente '${item.name}': ${err.message}`);
+          throw new Error(`Error al guardar cliente '${item.name || item.id || 'Desconocido'}': ${err.message}`);
         });
       });
 
@@ -161,10 +161,10 @@ export default function SettingsPage() {
 
       const validProjectItems = projectsToImportJSON.filter(item => {
         if (typeof item !== 'object' || item === null || Object.keys(item).length === 0) {
-          // errorCount++; // Moved to allSettled handler if we decide to reject for these
           const msg = `Item omitido: no es un objeto de proyecto válido o está vacío. Item: ${JSON.stringify(item)}`;
-          errorMessages.push(msg); // Keep this for summary, but it won't be part of Promise.allSettled rejections
-          console.warn(msg);
+          console.warn(msg); // Log a warning for these immediately skipped items
+          errorMessages.push(msg); // Add to summary
+          errorCount++; // Count it as an error
           return false;
         }
         return true;
@@ -177,7 +177,10 @@ export default function SettingsPage() {
         const requiredFields: (keyof ProjectImportData)[] = ['projectNumber', 'clientId', 'date', 'subtotal', 'taxRate', 'status', 'classification', 'collect'];
         const missingFields = requiredFields.filter(field => {
           const value = currentProjTyped[field];
-          return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
+          // Check for undefined, null, or empty string for string fields
+          if (typeof value === 'string') return value.trim() === '';
+          // Check for undefined or null for other fields
+          return value === undefined || value === null;
         });
         
         if (missingFields.length > 0) {
@@ -188,7 +191,7 @@ export default function SettingsPage() {
         // --- Data Preparation ---
         let projectDate: Date;
         try {
-          projectDate = new Date(currentProjTyped.date as string);
+          projectDate = new Date(currentProjTyped.date as string); // Assuming date is string YYYY-MM-DD or ISO
           if (isNaN(projectDate.getTime())) throw new Error('Formato de fecha inválido para "date"');
         } catch (e: any) {
           throw new Error(`Proyecto '${currentProjTyped.projectNumber}': Fecha de inicio inválida. ${e.message}. Valor: ${currentProjTyped.date}`);
@@ -229,29 +232,30 @@ export default function SettingsPage() {
           date: projectDate,
           subtotal: Number(currentProjTyped.subtotal),
           taxRate: Number(currentProjTyped.taxRate),
-          status: currentProjTyped.status as ProjectStatus,
-          classification: currentProjTyped.classification as ProjectClassification,
-          collect: Boolean(currentProjTyped.collect),
+          status: currentProjTyped.status as ProjectStatus, // Assuming status is valid
+          classification: currentProjTyped.classification as ProjectClassification, // Assuming classification is valid
+          collect: typeof currentProjTyped.collect === 'boolean' ? currentProjTyped.collect : false, // Default to false if invalid
           
           description: currentProjTyped.description ? String(currentProjTyped.description) : '',
           glosa: currentProjTyped.glosa ? String(currentProjTyped.glosa) : '',
           endDate: projectEndDate,
-          createdAt: projectCreatedAt,
+          createdAt: projectCreatedAt, // Pass Date object or undefined
           phone: currentProjTyped.phone ? String(currentProjTyped.phone) : '',
           address: currentProjTyped.address ? String(currentProjTyped.address) : '',
           commune: currentProjTyped.commune ? String(currentProjTyped.commune) : '',
-          region: currentProjTyped.region ? String(currentProjTyped.region) : 'RM',
+          region: currentProjTyped.region ? String(currentProjTyped.region) : 'RM', // Default if not provided
           windowsCount: currentProjTyped.windowsCount ? Number(currentProjTyped.windowsCount) : 0,
           squareMeters: currentProjTyped.squareMeters ? Number(currentProjTyped.squareMeters) : 0,
-          uninstall: currentProjTyped.hasOwnProperty('uninstall') ? Boolean(currentProjTyped.uninstall) : false,
+          uninstall: typeof currentProjTyped.uninstall === 'boolean' ? currentProjTyped.uninstall : false,
           uninstallTypes: Array.isArray(currentProjTyped.uninstallTypes) ? currentProjTyped.uninstallTypes.map(String) : [],
           uninstallOther: currentProjTyped.uninstallOther ? String(currentProjTyped.uninstallOther) : '',
-          isHidden: currentProjTyped.hasOwnProperty('isHidden') ? Boolean(currentProjTyped.isHidden) : false,
+          isHidden: typeof currentProjTyped.isHidden === 'boolean' ? currentProjTyped.isHidden : false,
         };
         
         try {
           return await addProject(projectDataPayload);
         } catch (serviceError: any) {
+          // Re-throw to be caught by Promise.allSettled
           throw new Error(`Error al guardar proyecto '${projectDataPayload.projectNumber}': ${serviceError.message}`);
         }
       });
@@ -265,6 +269,7 @@ export default function SettingsPage() {
           errorCount++;
           const errorMessage = result.reason?.message || 'Error desconocido durante la importación del proyecto.';
           errorMessages.push(errorMessage);
+          // This console.error will now log errors from validation OR from the addProject service
           console.error("Error en la importación de proyecto:", result.reason); 
         }
       });
@@ -281,7 +286,7 @@ export default function SettingsPage() {
         duration: errorCount > 0 ? 10000 : 5000,
       });
 
-    } catch (error: any) {
+    } catch (error: any) { // Catches errors from JSON.parse or other synchronous issues
       console.error("Error general durante la importación de proyectos:", error);
       toast({
         title: "Error de Importación General",
