@@ -296,7 +296,7 @@ export default function NewProjectPage() {
             <div className="flex flex-col md:flex-row gap-6">
               <div className="md:w-1/2 space-y-2">
                 <Label htmlFor="glosa">Glosa / Descripción Breve</Label>
-                <Textarea id="glosa" {...register("glosa")} placeholder="Descripción corta o notas iniciales del proyecto" disabled={addClientMutation.isPending} />
+                <Input id="glosa" {...register("glosa")} placeholder="Descripción corta o notas iniciales del proyecto" disabled={addClientMutation.isPending} />
                 {errors.glosa && <p className="text-sm text-destructive">{errors.glosa.message}</p>}
               </div>
               <div className="md:w-1/4 space-y-2">
