@@ -10,34 +10,182 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ChangeEvent } from 'react';
+import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { addClient } from '@/services/clientService';
+import { addProject } from '@/services/projectService';
+import type { Client } from '@/types/client';
+import type { ProjectType } from '@/types/project';
+import { Loader2 } from 'lucide-react';
 
 export default function SettingsPage() {
+  const { toast } = useToast();
+  const [clientFile, setClientFile] = useState<File | null>(null);
+  const [projectFile, setProjectFile] = useState<File | null>(null);
+  const [isImportingClients, setIsImportingClients] = useState(false);
+  const [isImportingProjects, setIsImportingProjects] = useState(false);
 
   const handleClientFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      console.log("Client file selected:", file.name);
-      // Aquí iría la lógica para leer y procesar el archivo de clientes
+      setClientFile(file);
+    } else {
+      setClientFile(null);
     }
   };
 
   const handleProjectFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      console.log("Project file selected:", file.name);
-      // Aquí iría la lógica para leer y procesar el archivo de proyectos
+      setProjectFile(file);
+    } else {
+      setProjectFile(null);
     }
   };
 
-  const handleImportClients = () => {
-    // Aquí iría la lógica para disparar la importación de clientes
-    // (usando el archivo seleccionado en el estado, si se guarda)
-    alert("Funcionalidad de importar clientes aún no implementada.");
+  const handleImportClients = async () => {
+    if (!clientFile) {
+      toast({ title: "Error", description: "Por favor, selecciona un archivo de clientes.", variant: "destructive" });
+      return;
+    }
+    setIsImportingClients(true);
+    try {
+      const fileContent = await clientFile.text();
+      const clientsToImport: Partial<Omit<Client, 'id' | 'createdAt' | 'updatedAt'>>[] = JSON.parse(fileContent);
+
+      if (!Array.isArray(clientsToImport)) {
+        throw new Error("El archivo JSON de clientes debe contener un array.");
+      }
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      const results = await Promise.allSettled(
+        clientsToImport.map(client => {
+          if (!client.name) {
+            errorCount++;
+            return Promise.reject(new Error(`Cliente omitido: falta el campo 'name'.`));
+          }
+          // Type assertion is okay here as addClient expects Omit<Client, 'id' | 'createdAt' | 'updatedAt'>
+          // and we've checked for name. Other fields are optional or handled by service.
+          return addClient(client as Omit<Client, 'id' | 'createdAt' | 'updatedAt'>);
+        })
+      );
+
+      results.forEach(result => {
+        if (result.status === 'fulfilled') {
+          successCount++;
+        } else {
+          errorCount++;
+          console.error("Error al importar cliente:", result.reason);
+        }
+      });
+
+      toast({
+        title: "Importación de Clientes Completada",
+        description: `${successCount} clientes importados exitosamente. ${errorCount} errores.`,
+        variant: errorCount > 0 ? "destructive" : "default",
+      });
+
+    } catch (error: any) {
+      console.error("Error durante la importación de clientes:", error);
+      toast({
+        title: "Error de Importación",
+        description: `No se pudo importar clientes: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsImportingClients(false);
+      setClientFile(null);
+      // Reset file input
+      const clientInput = document.getElementById('import-clients') as HTMLInputElement;
+      if (clientInput) clientInput.value = '';
+    }
   };
 
-  const handleImportProjects = () => {
-    // Aquí iría la lógica para disparar la importación de proyectos
-    alert("Funcionalidad de importar proyectos aún no implementada.");
+  const handleImportProjects = async () => {
+    if (!projectFile) {
+      toast({ title: "Error", description: "Por favor, selecciona un archivo de proyectos.", variant: "destructive" });
+      return;
+    }
+    setIsImportingProjects(true);
+    try {
+      const fileContent = await projectFile.text();
+      const projectsToImport: any[] = JSON.parse(fileContent); // Use any for initial parsing
+
+      if (!Array.isArray(projectsToImport)) {
+        throw new Error("El archivo JSON de proyectos debe contener un array.");
+      }
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      const results = await Promise.allSettled(
+        projectsToImport.map(proj => {
+          // Basic validation
+          if (!proj.projectNumber || !proj.clientId || !proj.date || proj.subtotal === undefined || proj.taxRate === undefined || !proj.status || !proj.classification) {
+            errorCount++;
+            console.error("Proyecto omitido por campos faltantes:", proj);
+            return Promise.reject(new Error(`Proyecto '${proj.projectNumber || 'Desconocido'}' omitido: faltan campos obligatorios.`));
+          }
+
+          const projectData: Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt' | 'total' | 'balance'> = {
+            projectNumber: proj.projectNumber,
+            clientId: proj.clientId,
+            description: proj.description || '',
+            date: new Date(proj.date), // Convert string date to Date object
+            subtotal: Number(proj.subtotal),
+            taxRate: Number(proj.taxRate),
+            status: proj.status,
+            classification: proj.classification,
+            endDate: proj.endDate ? new Date(proj.endDate) : undefined,
+            phone: proj.phone || '',
+            address: proj.address || '',
+            commune: proj.commune || '',
+            region: proj.region || 'RM',
+            windowsCount: Number(proj.windowsCount) || 0,
+            squareMeters: Number(proj.squareMeters) || 0,
+            uninstall: Boolean(proj.uninstall) || false,
+            uninstallTypes: Array.isArray(proj.uninstallTypes) ? proj.uninstallTypes : [],
+            uninstallOther: proj.uninstallOther || '',
+            glosa: proj.glosa || '',
+            collect: Boolean(proj.collect) || false,
+            isHidden: Boolean(proj.isHidden) || false,
+          };
+          
+          // The addProject service calculates total and balance
+          return addProject(projectData);
+        })
+      );
+
+      results.forEach(result => {
+        if (result.status === 'fulfilled') {
+          successCount++;
+        } else {
+          errorCount++;
+          console.error("Error al importar proyecto:", result.reason);
+        }
+      });
+
+      toast({
+        title: "Importación de Proyectos Completada",
+        description: `${successCount} proyectos importados exitosamente. ${errorCount} errores.`,
+        variant: errorCount > 0 ? "destructive" : "default",
+      });
+
+    } catch (error: any) {
+      console.error("Error durante la importación de proyectos:", error);
+      toast({
+        title: "Error de Importación",
+        description: `No se pudo importar proyectos: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsImportingProjects(false);
+      setProjectFile(null);
+      const projectInput = document.getElementById('import-projects') as HTMLInputElement;
+      if (projectInput) projectInput.value = '';
+    }
   };
 
 
@@ -145,7 +293,7 @@ export default function SettingsPage() {
                   <Label htmlFor="import-clients" className="text-base font-semibold">Importar Clientes (JSON)</Label>
                   <p className="text-sm text-muted-foreground">
                     Selecciona un archivo JSON que contenga un array de objetos de clientes.
-                    Cada objeto debe tener al menos los campos: `name` (string), `phone` (string, opcional), `email` (string, opcional).
+                    Cada objeto debe tener al menos el campo `name` (string). Otros campos como `email` y `phone` son opcionales.
                   </p>
                   <div className="flex flex-col sm:flex-row items-center gap-3">
                     <Input
@@ -154,16 +302,19 @@ export default function SettingsPage() {
                       accept=".json"
                       onChange={handleClientFileChange}
                       className="flex-grow"
+                      disabled={isImportingClients}
                     />
-                    <Button onClick={handleImportClients} className="w-full sm:w-auto">Importar Clientes</Button>
+                    <Button onClick={handleImportClients} className="w-full sm:w-auto" disabled={!clientFile || isImportingClients}>
+                      {isImportingClients ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Importar Clientes
+                    </Button>
                   </div>
                 </div>
 
                 <div className="space-y-3 p-4 border rounded-lg">
                   <Label htmlFor="import-projects" className="text-base font-semibold">Importar Proyectos (JSON)</Label>
                   <p className="text-sm text-muted-foreground">
-                    Selecciona un archivo JSON que contenga un array de objetos de proyectos.
-                    Asegúrate de que los `clientId` en los proyectos existan previamente o se importen primero.
+                    Selecciona un archivo JSON con un array de proyectos. Campos requeridos: `projectNumber`, `clientId` (ID de Firestore del cliente), `date` (YYYY-MM-DD), `subtotal`, `taxRate`, `status`, `classification`.
                   </p>
                   <div className="flex flex-col sm:flex-row items-center gap-3">
                     <Input
@@ -172,13 +323,16 @@ export default function SettingsPage() {
                       accept=".json"
                       onChange={handleProjectFileChange}
                       className="flex-grow"
+                      disabled={isImportingProjects}
                     />
-                    <Button onClick={handleImportProjects} className="w-full sm:w-auto">Importar Proyectos</Button>
+                    <Button onClick={handleImportProjects} className="w-full sm:w-auto" disabled={!projectFile || isImportingProjects}>
+                      {isImportingProjects ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Importar Proyectos
+                    </Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
-             {/* Podríamos añadir un botón de Guardar Cambios para Datos si fuera necesario */}
           </TabsContent>
         </Tabs>
       </main>
