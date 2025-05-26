@@ -1,22 +1,24 @@
+
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription, // Import DialogDescription
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import type { Client } from '@/types/client';
-import { useToast } from '@/hooks/use-toast'; // Importar useToast
+import { useToast } from '@/hooks/use-toast';
 
 interface ClientModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (client: Client) => void;
-  clientData?: Client; 
+  clientData?: Client;
 }
 
 const ClientModal: React.FC<ClientModalProps> = ({ isOpen, onClose, onSave, clientData }) => {
@@ -25,9 +27,8 @@ const ClientModal: React.FC<ClientModalProps> = ({ isOpen, onClose, onSave, clie
     name: '',
     email: '',
     phone: '',
-    // address: '', // Removed address
   });
-  const { toast } = useToast(); // Inicializar useToast
+  const { toast } = useToast();
 
   useEffect(() => {
     if (clientData) {
@@ -38,7 +39,6 @@ const ClientModal: React.FC<ClientModalProps> = ({ isOpen, onClose, onSave, clie
         name: '',
         email: '',
         phone: '',
-        // address: '', // Removed address
       });
     }
   }, [clientData, isOpen]);
@@ -60,8 +60,6 @@ const ClientModal: React.FC<ClientModalProps> = ({ isOpen, onClose, onSave, clie
       });
       return;
     }
-    // Aquí se podrían añadir más validaciones (email, teléfono, etc.)
-
     onSave(client);
     onClose();
   };
@@ -71,6 +69,9 @@ const ClientModal: React.FC<ClientModalProps> = ({ isOpen, onClose, onSave, clie
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>{clientData ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
+          <DialogDescription>
+            {clientData ? 'Modifica los datos del cliente.' : 'Ingresa los datos para un nuevo cliente.'}
+          </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
@@ -83,22 +84,14 @@ const ClientModal: React.FC<ClientModalProps> = ({ isOpen, onClose, onSave, clie
             <Label htmlFor="email" className="text-right">
               Email
             </Label>
-            <Input id="email" name="email" type="email" value={client.email} onChange={handleChange} className="col-span-3" placeholder="correo@ejemplo.com" />
+            <Input id="email" name="email" type="email" value={client.email || ''} onChange={handleChange} className="col-span-3" placeholder="correo@ejemplo.com" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="phone" className="text-right">
               Teléfono
             </Label>
-            <Input id="phone" name="phone" type="tel" value={client.phone} onChange={handleChange} className="col-span-3" placeholder="Ej: +123456789" />
+            <Input id="phone" name="phone" type="tel" value={client.phone || ''} onChange={handleChange} className="col-span-3" placeholder="Ej: +123456789" />
           </div>
-          {/* Removed Address Field
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="address" className="text-right">
-              Dirección
-            </Label>
-            <Input id="address" name="address" value={client.address} onChange={handleChange} className="col-span-3" placeholder="Dirección completa" />
-          </div>
-          */}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>

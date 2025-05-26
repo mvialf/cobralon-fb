@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription, // Import DialogDescription
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
@@ -16,10 +17,10 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
+  AlertDialogDescription as AlertDialogDescriptionContent, // Alias to avoid conflict
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialogTitle as AlertDialogTitleContent, // Alias to avoid conflict
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
@@ -66,14 +67,14 @@ export function EventModal({
     if (eventData) {
       setCurrentId((eventData as EventType).id);
       setName(eventData.name || '');
-      
+
       const start = eventData.startDate ? new Date(eventData.startDate) : new Date();
       setStartDateString(formatDateForInput(start));
 
       // Default end date to same day as start if not provided or if it's an old event before endOfDay logic
       const end = eventData.endDate ? new Date(eventData.endDate) : start;
       setEndDateString(formatDateForInput(end));
-      
+
       setDescription(eventData.description || '');
       setColor(eventData.color || defaultColor);
     } else {
@@ -103,7 +104,7 @@ export function EventModal({
       toast({ title: "Error de Validación", description: "La fecha de fin no puede ser anterior a la fecha de inicio.", variant: "destructive" });
       return;
     }
-    
+
     const eventToSave: Omit<EventType, 'id'> & { id?: string } = {
       name,
       startDate: finalStartDate,
@@ -148,7 +149,7 @@ export function EventModal({
       }
     });
   };
-  
+
   const handleCloseDialog = (open: boolean) => {
     if (!open) {
       onClose();
@@ -162,6 +163,9 @@ export function EventModal({
           <DialogTitle className="text-2xl font-semibold">
             {currentId ? 'Editar Tarea' : 'Añadir Nueva Tarea'}
           </DialogTitle>
+          <DialogDescription>
+            {currentId ? 'Modifica los detalles de la tarea existente.' : 'Ingresa los detalles para una nueva tarea.'}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSave}>
           <div className="grid gap-6 py-6 px-2">
@@ -192,7 +196,7 @@ export function EventModal({
                 <Input id="end-date" type="date" value={endDateString} onChange={(e: ChangeEvent<HTMLInputElement>) => setEndDateString(e.target.value)} required />
               </div>
             </div>
-            
+
             <div className="grid gap-3">
               <Label htmlFor="description" className="text-sm font-medium">Descripción</Label>
               <Textarea
@@ -237,10 +241,10 @@ export function EventModal({
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                    <AlertDialogDescription>
+                    <AlertDialogTitleContent>¿Estás seguro?</AlertDialogTitleContent> 
+                    <AlertDialogDescriptionContent>
                       Esta acción no se puede deshacer. Esto eliminará permanentemente la tarea.
-                    </AlertDialogDescription>
+                    </AlertDialogDescriptionContent>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>

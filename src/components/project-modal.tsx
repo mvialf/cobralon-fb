@@ -6,7 +6,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
   DialogDescription,
   DialogClose,
 } from "@/components/ui/dialog";
@@ -19,8 +18,15 @@ import { Switch } from '@/components/ui/switch';
 import type { ProjectType, ProjectStatus, ProjectClassification } from '@/types/project';
 import type { Client } from '@/types/client';
 import { useToast } from '@/hooks/use-toast';
-import { format as formatDate, parseISO } from 'date-fns'; // Using date-fns for formatting
-import { es } from 'date-fns/locale';
+import { format as formatDateFns, parseISO } from 'date-fns'; // Using date-fns for formatting
+// import { es } from 'date-fns/locale'; // Locale already handled in calendar-utils
+
+// Helper to format currency (Chilean Pesos example)
+const formatCurrency = (amount: number | undefined | null) => {
+  if (amount === undefined || amount === null) return 'N/A';
+  return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
+};
+
 
 interface ProjectModalProps {
   isOpen: boolean;
@@ -39,6 +45,7 @@ const initialProjectState: Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt' | 
   taxRate: 19, // Default tax rate, e.g., 19% for IVA in Chile
   status: 'ingresado',
   classification: 'bajo',
+  collect: false, // Non-optional, default to false
   // Optional fields
   endDate: undefined,
   phone: '',
@@ -51,7 +58,6 @@ const initialProjectState: Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt' | 
   uninstallTypes: [],
   uninstallOther: '',
   glosa: '',
-  collect: false,
   isHidden: false,
 };
 
@@ -68,20 +74,25 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
     try {
       // Attempt to parse if it's a string in a different format or an ISO string
       const d = typeof date === 'string' ? parseISO(date) : date;
-      return formatDate(d, 'yyyy-MM-dd');
+      return formatDateFns(d, 'yyyy-MM-dd');
     } catch (error) {
       console.warn("Error formatting date for input:", date, error);
       return ''; // Fallback for invalid dates
     }
   };
-  
+
 
   useEffect(() => {
     if (projectData) {
       setProject({
-        ...projectData,
+        ...initialProjectState, // Start with defaults for all fields
+        ...projectData, // Override with actual project data
         date: projectData.date, // Keep as Date object
         endDate: projectData.endDate, // Keep as Date object or undefined
+        // Ensure boolean fields have a default if undefined in projectData, though types should prevent this
+        collect: projectData.collect ?? false,
+        uninstall: projectData.uninstall ?? false,
+        isHidden: projectData.isHidden ?? false,
       });
     } else {
       // Create a new date object for new projects to avoid mutating the initialProjectState.date
@@ -91,13 +102,13 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
-    
+
     if (type === 'number') {
       setProject(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
     } else if (type === 'date' && name === 'date') {
-       setProject(prev => ({ ...prev, date: value ? new Date(value + 'T00:00:00') : new Date() }));
+       setProject(prev => ({ ...prev, date: value ? parseISO(value) : new Date() }));
     } else if (type === 'date' && name === 'endDate') {
-       setProject(prev => ({ ...prev, endDate: value ? new Date(value + 'T00:00:00') : undefined }));
+       setProject(prev => ({ ...prev, endDate: value ? parseISO(value) : undefined }));
     }
     else {
       setProject(prev => ({ ...prev, [name]: value }));
@@ -126,28 +137,29 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
       toast({ title: "Error de Validación", description: "Debe seleccionar un cliente.", variant: "destructive" });
       return;
     }
+     if (!project.date) {
+      toast({ title: "Error de Validación", description: "La fecha de inicio es obligatoria.", variant: "destructive" });
+      return;
+    }
+
 
     const total = parseFloat(calculateTotal(project.subtotal, project.taxRate).toFixed(2));
-    
-    // For new projects, balance is initially the total. For existing, it's more complex and usually handled by payments.
-    // We assume the service or backend calculates/updates balance based on payments.
-    // Here, we primarily focus on sending the correct 'total'.
+
     const projectToSave: ProjectType = {
-      ...initialProjectState, // ensures all fields are present
+      ...initialProjectState, // ensures all fields are present with defaults
       ...project,
-      id: project.id || '', // Ensure id is a string, even if empty for new
+      id: project.id || '',
       total: total,
-      // Balance should ideally be calculated based on payments, or initialized to total for new projects.
-      // If projectData exists, we might want to preserve its balance unless specifically recalculating.
-      // For simplicity, we'll let the service handle balance updates or backend logic.
-      // If it's a new project, balance can be total.
       balance: projectData?.balance !== undefined ? projectData.balance : total,
-      date: project.date instanceof Date ? project.date : new Date(project.date), // Ensure it's Date
-      endDate: project.endDate ? (project.endDate instanceof Date ? project.endDate : new Date(project.endDate)) : undefined,
+      date: project.date instanceof Date ? project.date : parseISO(project.date as unknown as string),
+      endDate: project.endDate ? (project.endDate instanceof Date ? project.endDate : parseISO(project.endDate as unknown as string)) : undefined,
+      // Ensure all required boolean fields have a value
+      collect: project.collect ?? false,
+      uninstall: project.uninstall ?? false,
+      isHidden: project.isHidden ?? false,
     };
 
     onSave(projectToSave);
-    // onClose(); // Usually called by the parent component after mutation success
   };
 
   return (
@@ -156,7 +168,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
         <DialogHeader>
           <DialogTitle>{projectData ? 'Editar Proyecto' : 'Nuevo Proyecto'}</DialogTitle>
           <DialogDescription>
-            {projectData ? 'Actualiza los detalles del proyecto.' : 'Completa la información para crear un nuevo proyecto.'}
+            {projectData ? 'Actualiza los detalles del proyecto existente.' : 'Completa la información para crear un nuevo proyecto.'}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-6 py-4">
@@ -198,15 +210,15 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
               <Input id="endDate" name="endDate" type="date" value={formatDateForInput(project.endDate)} onChange={handleChange} />
             </div>
           </div>
-          
+
           {/* Row 4: Subtotal, Tax Rate */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="subtotal">Subtotal</Label>
+              <Label htmlFor="subtotal">Subtotal <span className="text-destructive">*</span></Label>
               <Input id="subtotal" name="subtotal" type="number" value={project.subtotal} onChange={handleChange} placeholder="0" />
             </div>
             <div>
-              <Label htmlFor="taxRate">Tasa de Impuesto (%)</Label>
+              <Label htmlFor="taxRate">Tasa de Impuesto (%) <span className="text-destructive">*</span></Label>
               <Input id="taxRate" name="taxRate" type="number" value={project.taxRate} onChange={handleChange} placeholder="19" />
             </div>
           </div>
@@ -275,7 +287,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
             </div>
             <div>
                 <Label htmlFor="squareMeters">Metros Cuadrados (m²)</Label>
-                <Input id="squareMeters" name="squareMeters" type="number" value={project.squareMeters || 0} onChange={handleChange} />
+                <Input id="squareMeters" name="squareMeters" type="number" step="any" value={project.squareMeters || 0} onChange={handleChange} />
             </div>
           </div>
 
@@ -289,12 +301,12 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
                 <>
                     <div>
                         <Label htmlFor="uninstallTypes">Tipos de Desinstalación (separados por coma)</Label>
-                        <Input 
-                            id="uninstallTypes" 
-                            name="uninstallTypes" 
-                            value={Array.isArray(project.uninstallTypes) ? project.uninstallTypes.join(', ') : ''} 
-                            onChange={(e) => setProject(prev => ({ ...prev, uninstallTypes: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} 
-                            placeholder="Ej: Marcos antiguos, Protecciones" 
+                        <Input
+                            id="uninstallTypes"
+                            name="uninstallTypes"
+                            value={Array.isArray(project.uninstallTypes) ? project.uninstallTypes.join(', ') : ''}
+                            onChange={(e) => setProject(prev => ({ ...prev, uninstallTypes: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
+                            placeholder="Ej: Marcos antiguos, Protecciones"
                         />
                     </div>
                     <div>
@@ -304,7 +316,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
                 </>
             )}
           </div>
-          
+
           {/* Glosa and Collect */}
           <div>
             <Label htmlFor="glosa">Glosa / Notas Adicionales</Label>
@@ -312,10 +324,10 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
           </div>
 
           <div className="flex items-center space-x-2">
-            <Switch id="collect" name="collect" checked={project.collect || false} onCheckedChange={(checked) => handleSwitchChange('collect', checked)} />
-            <Label htmlFor="collect">¿Retirar Materiales?</Label>
+            <Switch id="collect" name="collect" checked={project.collect} onCheckedChange={(checked) => handleSwitchChange('collect', checked)} />
+            <Label htmlFor="collect">¿Retirar Materiales? <span className="text-destructive">*</span></Label>
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <Switch id="isHidden" name="isHidden" checked={project.isHidden || false} onCheckedChange={(checked) => handleSwitchChange('isHidden', checked)} />
             <Label htmlFor="isHidden">Ocultar Proyecto (Archivar)</Label>
@@ -324,7 +336,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
         </div>
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button variant="outline">Cancelar</Button>
           </DialogClose>
           <Button onClick={handleSave}>Guardar Proyecto</Button>
         </DialogFooter>
@@ -334,4 +346,3 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
 };
 
 export default ProjectModal;
-
