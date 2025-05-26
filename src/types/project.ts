@@ -2,7 +2,7 @@
 import type { Timestamp } from 'firebase/firestore';
 
 export type ProjectStatus = 'ingresado' | 'en progreso' | 'completado' | 'cancelado' | 'pendiente aprobación' | string;
-export type ProjectClassification = 'bajo' | 'medio' | 'alto' | string;
+// export type ProjectClassification = 'bajo' | 'medio' | 'alto' | string; // Removed classification
 
 export interface ProjectType {
   id: string;
@@ -18,7 +18,7 @@ export interface ProjectType {
   updatedAt?: Date;
   status: ProjectStatus;
   endDate?: Date; // Completion or projected end date
-  classification: ProjectClassification;
+  // classification: ProjectClassification; // Removed classification
   phone?: string; // Contact phone for the project, might differ from client
   address?: string; // Project site address
   commune?: string;
@@ -50,7 +50,7 @@ export interface ProjectImportData extends Partial<Omit<ProjectType, 'total' | '
   subtotal: number;
   taxRate: number;
   status: ProjectStatus;
-  classification: ProjectClassification;
+  // classification: ProjectClassification; // Removed classification
   collect: boolean;
   createdAt?: string | Date; // Can be string from JSON or Date object
   endDate?: string | Date;

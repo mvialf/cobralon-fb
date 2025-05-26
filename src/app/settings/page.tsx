@@ -15,7 +15,8 @@ import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { addClient, type ClientImportData } from '@/services/clientService';
 import { addProject, type ProjectImportData } from '@/services/projectService';
-import type { ProjectStatus, ProjectClassification } from '@/types/project';
+// import type { ProjectStatus, ProjectClassification } from '@/types/project'; // ProjectClassification removed
+import type { ProjectStatus } from '@/types/project';
 import { Loader2 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -64,8 +65,7 @@ export default function SettingsPage() {
       const importPromises = rawClientsToImport.map(item => {
         if (!item || typeof item.name !== 'string' || item.name.trim() === '') {
           const msg = `Cliente omitido: falta 'name' o es inválido. ID: ${item?.id || 'N/A'}`;
-          // This error is handled by Promise.allSettled's rejection case
-          return Promise.reject(new Error(msg));
+          throw new Error(msg);
         }
 
         const clientPayload: ClientImportData = {
@@ -106,7 +106,7 @@ export default function SettingsPage() {
       results.forEach(result => {
         if (result.status === 'fulfilled') {
           successCount++;
-        } else { // status === 'rejected'
+        } else { 
           errorCount++;
           const errorMessage = result.reason?.message || 'Error desconocido durante la importación del cliente.';
           errorMessages.push(errorMessage);
@@ -147,9 +147,9 @@ export default function SettingsPage() {
       return;
     }
     setIsImportingProjects(true);
-    const errorMessages: string[] = [];
     let successCount = 0;
     let errorCount = 0;
+    const errorMessages: string[] = [];
 
     try {
       const fileContent = await projectFile.text();
@@ -162,9 +162,9 @@ export default function SettingsPage() {
       const validProjectItems = projectsToImportJSON.filter(item => {
         if (typeof item !== 'object' || item === null || Object.keys(item).length === 0) {
           const msg = `Item omitido: no es un objeto de proyecto válido o está vacío. Item: ${JSON.stringify(item)}`;
-          console.warn(msg); // Log a warning for these immediately skipped items
-          errorMessages.push(msg); // Add to summary
-          errorCount++; // Count it as an error
+          console.warn(msg); 
+          errorMessages.push(msg); 
+          errorCount++; 
           return false;
         }
         return true;
@@ -173,25 +173,24 @@ export default function SettingsPage() {
       const importPromises = validProjectItems.map(async (proj) => {
         const currentProjTyped = proj as ProjectImportData;
 
-        // --- Validation ---
-        const requiredFields: (keyof ProjectImportData)[] = ['projectNumber', 'clientId', 'date', 'subtotal', 'taxRate', 'status', 'classification', 'collect'];
+        // Removed 'classification' from requiredFields
+        const requiredFields: (keyof Omit<ProjectImportData, 'classification'>)[] = ['projectNumber', 'clientId', 'date', 'subtotal', 'taxRate', 'status', 'collect'];
+        
         const missingFields = requiredFields.filter(field => {
-          const value = currentProjTyped[field];
-          // Check for undefined, null, or empty string for string fields
+          const value = currentProjTyped[field as keyof ProjectImportData];
           if (typeof value === 'string') return value.trim() === '';
-          // Check for undefined or null for other fields
+          if (typeof value === 'boolean') return false; // boolean 'false' is a valid value
           return value === undefined || value === null;
         });
         
         if (missingFields.length > 0) {
           const msg = `Proyecto '${currentProjTyped.projectNumber || 'Desconocido'}' omitido: faltan campos obligatorios: ${missingFields.join(', ')}.`;
-          throw new Error(msg); // This will cause the promise for this item to be rejected
+          throw new Error(msg); 
         }
 
-        // --- Data Preparation ---
         let projectDate: Date;
         try {
-          projectDate = new Date(currentProjTyped.date as string); // Assuming date is string YYYY-MM-DD or ISO
+          projectDate = new Date(currentProjTyped.date as string); 
           if (isNaN(projectDate.getTime())) throw new Error('Formato de fecha inválido para "date"');
         } catch (e: any) {
           throw new Error(`Proyecto '${currentProjTyped.projectNumber}': Fecha de inicio inválida. ${e.message}. Valor: ${currentProjTyped.date}`);
@@ -232,18 +231,18 @@ export default function SettingsPage() {
           date: projectDate,
           subtotal: Number(currentProjTyped.subtotal),
           taxRate: Number(currentProjTyped.taxRate),
-          status: currentProjTyped.status as ProjectStatus, // Assuming status is valid
-          classification: currentProjTyped.classification as ProjectClassification, // Assuming classification is valid
-          collect: typeof currentProjTyped.collect === 'boolean' ? currentProjTyped.collect : false, // Default to false if invalid
+          status: currentProjTyped.status as ProjectStatus, 
+          // classification: currentProjTyped.classification as ProjectClassification, // Removed classification
+          collect: typeof currentProjTyped.collect === 'boolean' ? currentProjTyped.collect : false, 
           
           description: currentProjTyped.description ? String(currentProjTyped.description) : '',
           glosa: currentProjTyped.glosa ? String(currentProjTyped.glosa) : '',
           endDate: projectEndDate,
-          createdAt: projectCreatedAt, // Pass Date object or undefined
+          createdAt: projectCreatedAt, 
           phone: currentProjTyped.phone ? String(currentProjTyped.phone) : '',
           address: currentProjTyped.address ? String(currentProjTyped.address) : '',
           commune: currentProjTyped.commune ? String(currentProjTyped.commune) : '',
-          region: currentProjTyped.region ? String(currentProjTyped.region) : 'RM', // Default if not provided
+          region: currentProjTyped.region ? String(currentProjTyped.region) : 'RM', 
           windowsCount: currentProjTyped.windowsCount ? Number(currentProjTyped.windowsCount) : 0,
           squareMeters: currentProjTyped.squareMeters ? Number(currentProjTyped.squareMeters) : 0,
           uninstall: typeof currentProjTyped.uninstall === 'boolean' ? currentProjTyped.uninstall : false,
@@ -255,7 +254,6 @@ export default function SettingsPage() {
         try {
           return await addProject(projectDataPayload);
         } catch (serviceError: any) {
-          // Re-throw to be caught by Promise.allSettled
           throw new Error(`Error al guardar proyecto '${projectDataPayload.projectNumber}': ${serviceError.message}`);
         }
       });
@@ -265,11 +263,10 @@ export default function SettingsPage() {
       results.forEach(result => {
         if (result.status === 'fulfilled') {
           successCount++;
-        } else { // status === 'rejected'
+        } else { 
           errorCount++;
           const errorMessage = result.reason?.message || 'Error desconocido durante la importación del proyecto.';
           errorMessages.push(errorMessage);
-          // This console.error will now log errors from validation OR from the addProject service
           console.error("Error en la importación de proyecto:", result.reason); 
         }
       });
@@ -286,7 +283,7 @@ export default function SettingsPage() {
         duration: errorCount > 0 ? 10000 : 5000,
       });
 
-    } catch (error: any) { // Catches errors from JSON.parse or other synchronous issues
+    } catch (error: any) { 
       console.error("Error general durante la importación de proyectos:", error);
       toast({
         title: "Error de Importación General",
@@ -426,7 +423,7 @@ export default function SettingsPage() {
                 <div className="space-y-3 p-4 border rounded-lg">
                   <Label htmlFor="import-projects" className="text-base font-semibold">Importar Proyectos (JSON)</Label>
                   <p className="text-sm text-muted-foreground">
-                    JSON array. Requeridos: `projectNumber`, `clientId`, `date` (YYYY-MM-DD), `subtotal`, `taxRate`, `status`, `classification`, `collect`. Opc: `id`, `description`, `glosa`, `endDate`, `createdAt`, `phone`, `address`, `commune`, `region`, `windowsCount`, `squareMeters`, `uninstall`, `uninstallTypes` (array de strings), `uninstallOther`, `isHidden`.
+                    JSON array. Requeridos: `projectNumber`, `clientId`, `date` (YYYY-MM-DD), `subtotal`, `taxRate`, `status`, `collect`. Opc: `id`, `description`, `glosa`, `endDate`, `createdAt`, `phone`, `address`, `commune`, `region`, `windowsCount`, `squareMeters`, `uninstall`, `uninstallTypes` (array de strings), `uninstallOther`, `isHidden`.
                   </p>
                   <div className="flex flex-col sm:flex-row items-center gap-3">
                     <Input
@@ -451,4 +448,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-

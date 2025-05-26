@@ -15,13 +15,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import type { ProjectType, ProjectStatus, ProjectClassification } from '@/types/project';
+import type { ProjectType, ProjectStatus } from '@/types/project';
 import type { Client } from '@/types/client';
 import { useToast } from '@/hooks/use-toast';
-import { format as formatDateFns, parseISO } from 'date-fns'; // Using date-fns for formatting
-// import { es } from 'date-fns/locale'; // Locale already handled in calendar-utils
+import { format as formatDateFns, parseISO } from 'date-fns'; 
 
-// Helper to format currency (Chilean Pesos example)
 const formatCurrency = (amount: number | undefined | null) => {
   if (amount === undefined || amount === null) return 'N/A';
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
@@ -40,13 +38,12 @@ const initialProjectState: Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt' | 
   projectNumber: '',
   clientId: '',
   description: '',
-  date: new Date(), // Default to today
+  date: new Date(), 
   subtotal: 0,
-  taxRate: 19, // Default tax rate, e.g., 19% for IVA in Chile
+  taxRate: 19, 
   status: 'ingresado',
-  classification: 'bajo',
-  collect: false, // Non-optional, default to false
-  // Optional fields
+  // classification: 'bajo', // Removed classification
+  collect: false, 
   endDate: undefined,
   phone: '',
   address: '',
@@ -66,18 +63,15 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
   const [project, setProject] = useState<Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt' | 'total' | 'balance'> & { id?: string }>(initialProjectState);
   const { toast } = useToast();
 
-  // Helper to format date for input type="date"
   const formatDateForInput = (date: Date | string | undefined): string => {
     if (!date) return '';
-    // If it's already a string in 'yyyy-MM-dd' format, return it
     if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
     try {
-      // Attempt to parse if it's a string in a different format or an ISO string
       const d = typeof date === 'string' ? parseISO(date) : date;
       return formatDateFns(d, 'yyyy-MM-dd');
     } catch (error) {
       console.warn("Error formatting date for input:", date, error);
-      return ''; // Fallback for invalid dates
+      return ''; 
     }
   };
 
@@ -85,17 +79,15 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
   useEffect(() => {
     if (projectData) {
       setProject({
-        ...initialProjectState, // Start with defaults for all fields
-        ...projectData, // Override with actual project data
-        date: projectData.date, // Keep as Date object
-        endDate: projectData.endDate, // Keep as Date object or undefined
-        // Ensure boolean fields have a default if undefined in projectData, though types should prevent this
+        ...initialProjectState, 
+        ...projectData, 
+        date: projectData.date, 
+        endDate: projectData.endDate, 
         collect: projectData.collect ?? false,
         uninstall: projectData.uninstall ?? false,
         isHidden: projectData.isHidden ?? false,
       });
     } else {
-      // Create a new date object for new projects to avoid mutating the initialProjectState.date
       setProject({...initialProjectState, date: new Date() });
     }
   }, [projectData, isOpen]);
@@ -115,7 +107,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
     }
   };
 
-  const handleSelectChange = (name: keyof ProjectType, value: string) => {
+  const handleSelectChange = (name: keyof Omit<ProjectType, 'classification'>, value: string) => {
     setProject(prev => ({ ...prev, [name]: value as any }));
   };
 
@@ -146,14 +138,13 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
     const total = parseFloat(calculateTotal(project.subtotal, project.taxRate).toFixed(2));
 
     const projectToSave: ProjectType = {
-      ...initialProjectState, // ensures all fields are present with defaults
+      ...initialProjectState, 
       ...project,
       id: project.id || '',
       total: total,
       balance: projectData?.balance !== undefined ? projectData.balance : total,
       date: project.date instanceof Date ? project.date : parseISO(project.date as unknown as string),
       endDate: project.endDate ? (project.endDate instanceof Date ? project.endDate : parseISO(project.endDate as unknown as string)) : undefined,
-      // Ensure all required boolean fields have a value
       collect: project.collect ?? false,
       uninstall: project.uninstall ?? false,
       isHidden: project.isHidden ?? false,
@@ -229,7 +220,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
             </div>
 
 
-          {/* Row 5: Status, Classification */}
+          {/* Row 5: Status */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="status">Estado <span className="text-destructive">*</span></Label>
@@ -244,17 +235,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label htmlFor="classification">Clasificación <span className="text-destructive">*</span></Label>
-              <Select name="classification" value={project.classification} onValueChange={(value) => handleSelectChange('classification', value as ProjectClassification)}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar clasificación" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bajo">Bajo</SelectItem>
-                  <SelectItem value="medio">Medio</SelectItem>
-                  <SelectItem value="alto">Alto</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Classification removed from here */}
           </div>
 
            {/* Optional Contact and Location Info */}

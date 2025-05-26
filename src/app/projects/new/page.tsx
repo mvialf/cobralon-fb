@@ -15,7 +15,7 @@ import { format as formatDateFns, parseISO } from 'date-fns';
 import type { ProjectType, ProjectStatus } from '@/types/project';
 import type { Client } from '@/types/client';
 import { addProject } from '@/services/projectService';
-import { getClients, addClient as addClientService } from '@/services/clientService'; // Renamed to avoid conflict
+import { getClients, addClient as addClientService } from '@/services/clientService';
 import { useToast } from '@/hooks/use-toast';
 
 import { Button } from '@/components/ui/button';
@@ -60,10 +60,9 @@ const projectSchema = z.object({
   commune: z.string().optional(),
   region: z.string().optional().default('RM'),
   address: z.string().optional(),
-  // Campos opcionales adicionales que no están en el formulario pero son parte de ProjectType
   description: z.string().optional(),
   endDate: z.date().optional(),
-  classification: z.enum(['bajo', 'medio', 'alto'] as [string, ...string[]]).default('bajo'),
+  // classification: z.enum(['bajo', 'medio', 'alto'] as [string, ...string[]]).default('bajo'), // Removed classification
   uninstall: z.boolean().default(false),
   uninstallTypes: z.array(z.string()).default([]),
   uninstallOther: z.string().optional(),
@@ -74,7 +73,6 @@ const projectSchema = z.object({
 
 type ProjectFormValues = z.infer<typeof projectSchema>;
 
-// Helper to format date for input type="date"
 const formatDateForInput = (date: Date | string | undefined): string => {
   if (!date) return '';
   if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
@@ -113,7 +111,7 @@ export default function NewProjectPage() {
       phone: '',
       commune: '',
       address: '',
-      classification: 'bajo',
+      // classification: 'bajo', // Removed classification
       uninstall: false,
       uninstallTypes: [],
       collect: false,
@@ -164,7 +162,7 @@ export default function NewProjectPage() {
       squareMeters: Number(data.squareMeters) || 0,
       description: data.description || '',
       endDate: data.endDate,
-      classification: data.classification || 'bajo',
+      // classification: data.classification || 'bajo', // Removed classification
       phone: data.phone || '',
       address: data.address || '',
       commune: data.commune || '',
@@ -219,7 +217,7 @@ export default function NewProjectPage() {
                   render={({ field }) => (
                     <Popover open={openClientCombobox} onOpenChange={(isOpen) => {
                       setOpenClientCombobox(isOpen);
-                      if (!isOpen) setIsClientSearchActive(false); // Reset search when popover closes
+                      if (!isOpen) setIsClientSearchActive(false); 
                     }}>
                       <PopoverTrigger asChild>
                         <Button
@@ -252,7 +250,7 @@ export default function NewProjectPage() {
                                 {clients.map((client) => (
                                   <CommandItem
                                     key={client.id}
-                                    value={client.name} // CMDK uses this for filtering
+                                    value={client.name} 
                                     onSelect={() => {
                                       setValue("clientId", client.id, { shouldValidate: true, shouldDirty: true });
                                       setOpenClientCombobox(false);
@@ -344,22 +342,22 @@ export default function NewProjectPage() {
 
             {/* Fila 3: Subtotal, IVA (%), N° Ventanas, M² */}
             <div className="grid grid-cols-1 md:grid-cols-9 gap-6">
-              <div className="md:col-span-3 space-y-2"> {/* 3/9 = 1/3 */}
+              <div className="md:col-span-3 space-y-2"> 
                 <Label htmlFor="subtotal">Subtotal <span className="text-destructive">*</span></Label>
                 <Input id="subtotal" type="number" step="any" {...register("subtotal")} placeholder="0" disabled={addClientMutation.isPending}/>
                 {errors.subtotal && <p className="text-sm text-destructive">{errors.subtotal.message}</p>}
               </div>
-              <div className="md:col-span-2 space-y-2"> {/* 2/9 */}
+              <div className="md:col-span-2 space-y-2"> 
                 <Label htmlFor="taxRate">IVA (%) <span className="text-destructive">*</span></Label>
                 <Input id="taxRate" type="number" step="any" {...register("taxRate")} placeholder="19" disabled={addClientMutation.isPending}/>
                 {errors.taxRate && <p className="text-sm text-destructive">{errors.taxRate.message}</p>}
               </div>
-              <div className="md:col-span-2 space-y-2"> {/* 2/9 */}
+              <div className="md:col-span-2 space-y-2"> 
                 <Label htmlFor="windowsCount">N° Ventanas</Label>
                 <Input id="windowsCount" type="number" {...register("windowsCount")} placeholder="0" disabled={addClientMutation.isPending}/>
                 {errors.windowsCount && <p className="text-sm text-destructive">{errors.windowsCount.message}</p>}
               </div>
-              <div className="md:col-span-2 space-y-2"> {/* 2/9 */}
+              <div className="md:col-span-2 space-y-2"> 
                 <Label htmlFor="squareMeters">M²</Label>
                 <Input id="squareMeters" type="number" step="any" {...register("squareMeters")} placeholder="0" disabled={addClientMutation.isPending}/>
                 {errors.squareMeters && <p className="text-sm text-destructive">{errors.squareMeters.message}</p>}
@@ -432,4 +430,3 @@ export default function NewProjectPage() {
     </div>
   );
 }
-
