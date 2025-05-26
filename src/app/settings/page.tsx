@@ -12,9 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ChangeEvent } from 'react';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { addClient } from '@/services/clientService';
+import { addClient, type ClientImportData } from '@/services/clientService'; // Import ClientImportData
 import { addProject } from '@/services/projectService';
-import type { Client } from '@/types/client';
 import type { ProjectType } from '@/types/project';
 import { Loader2 } from 'lucide-react';
 
@@ -51,33 +50,67 @@ export default function SettingsPage() {
     setIsImportingClients(true);
     try {
       const fileContent = await clientFile.text();
-      const clientsToImport: Partial<Omit<Client, 'id' | 'createdAt' | 'updatedAt'>>[] = JSON.parse(fileContent);
+      const rawClientsToImport: any[] = JSON.parse(fileContent);
 
-      if (!Array.isArray(clientsToImport)) {
+      if (!Array.isArray(rawClientsToImport)) {
         throw new Error("El archivo JSON de clientes debe contener un array.");
       }
 
       let successCount = 0;
       let errorCount = 0;
 
-      const results = await Promise.allSettled(
-        clientsToImport.map(client => {
-          if (!client.name) {
-            errorCount++;
-            return Promise.reject(new Error(`Cliente omitido: falta el campo 'name'.`));
+      const importPromises = rawClientsToImport.map(item => {
+        // Validate required fields (name)
+        if (!item.name || typeof item.name !== 'string' || item.name.trim() === '') {
+          errorCount++;
+          console.error("Cliente omitido del JSON: falta 'name' o es inválido.", item);
+          return Promise.reject(new Error(`Cliente omitido: falta el campo 'name' o es inválido.`));
+        }
+
+        const clientPayload: ClientImportData = {
+          name: item.name,
+        };
+
+        if (item.id && typeof item.id === 'string' && item.id.trim() !== '') {
+          clientPayload.id = item.id;
+        }
+        
+        // Handle optional fields, allowing null
+        if (item.hasOwnProperty('phone')) {
+          clientPayload.phone = typeof item.phone === 'string' || item.phone === null ? item.phone : String(item.phone);
+        }
+        if (item.hasOwnProperty('email')) {
+           clientPayload.email = typeof item.email === 'string' || item.email === null ? item.email : String(item.email);
+        }
+
+        if (item.createdAt) {
+          if (typeof item.createdAt === 'string' || item.createdAt instanceof Date) {
+            const dateTest = new Date(item.createdAt);
+            if (isNaN(dateTest.getTime())) {
+              console.warn(`Fecha 'createdAt' inválida para cliente ${item.name || item.id}, se usará valor por defecto del servidor. Valor recibido:`, item.createdAt);
+            } else {
+              clientPayload.createdAt = item.createdAt; // Pass string or Date to service
+            }
+          } else {
+            console.warn(`Formato 'createdAt' inesperado para cliente ${item.name || item.id}, se usará valor por defecto del servidor. Valor recibido:`, item.createdAt);
           }
-          // Type assertion is okay here as addClient expects Omit<Client, 'id' | 'createdAt' | 'updatedAt'>
-          // and we've checked for name. Other fields are optional or handled by service.
-          return addClient(client as Omit<Client, 'id' | 'createdAt' | 'updatedAt'>);
-        })
-      );
+        }
+        
+        return addClient(clientPayload);
+      });
+
+      const results = await Promise.allSettled(importPromises);
 
       results.forEach(result => {
         if (result.status === 'fulfilled') {
           successCount++;
         } else {
-          errorCount++;
-          console.error("Error al importar cliente:", result.reason);
+          // errorCount was already incremented for validation failures before calling addClient
+          // This path handles errors from addClient itself (e.g., Firestore permission issues)
+          if (!result.reason.message.startsWith("Cliente omitido:")) {
+             errorCount++; // Avoid double counting
+          }
+          console.error("Error al importar cliente (desde addClient):", result.reason);
         }
       });
 
@@ -97,7 +130,6 @@ export default function SettingsPage() {
     } finally {
       setIsImportingClients(false);
       setClientFile(null);
-      // Reset file input
       const clientInput = document.getElementById('import-clients') as HTMLInputElement;
       if (clientInput) clientInput.value = '';
     }
@@ -111,7 +143,7 @@ export default function SettingsPage() {
     setIsImportingProjects(true);
     try {
       const fileContent = await projectFile.text();
-      const projectsToImport: any[] = JSON.parse(fileContent); // Use any for initial parsing
+      const projectsToImport: any[] = JSON.parse(fileContent); 
 
       if (!Array.isArray(projectsToImport)) {
         throw new Error("El archivo JSON de proyectos debe contener un array.");
@@ -293,7 +325,7 @@ export default function SettingsPage() {
                   <Label htmlFor="import-clients" className="text-base font-semibold">Importar Clientes (JSON)</Label>
                   <p className="text-sm text-muted-foreground">
                     Selecciona un archivo JSON que contenga un array de objetos de clientes.
-                    Cada objeto debe tener al menos el campo `name` (string). Otros campos como `email` y `phone` son opcionales.
+                    Cada objeto debe tener `name` (string). Opcional: `id` (string), `phone` (string o null), `email` (string o null), `createdAt` (string ISO 8601 o YYYY-MM-DD).
                   </p>
                   <div className="flex flex-col sm:flex-row items-center gap-3">
                     <Input
@@ -339,3 +371,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+

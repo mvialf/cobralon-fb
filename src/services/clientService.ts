@@ -10,22 +10,31 @@ import {
   orderBy,
   Timestamp,
   serverTimestamp,
-  getDoc
+  getDoc,
+  setDoc
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import type { Client, ClientDocument } from '@/types/client';
-import { getProjects, deleteProject } from './projectService'; // Import deleteProject
+import { getProjects, deleteProject } from './projectService';
 
 const CLIENTS_COLLECTION = 'clients';
+
+// Interface for data used when importing or programmatically adding clients
+export interface ClientImportData {
+  id?: string; // If provided, this ID will be used for the document.
+  name: string; // Name is required.
+  phone?: string | null;
+  email?: string | null;
+  createdAt?: string | Date; // Can be a date string (from JSON) or a Date object.
+}
 
 const clientFromDoc = (docSnapshot: any): Client => {
   const data = docSnapshot.data() as ClientDocument;
   return {
     id: docSnapshot.id,
     name: data.name,
-    phone: data.phone,
-    email: data.email,
-    // address: data.address, // Removed address
+    phone: data.phone === null ? null : (data.phone || undefined), // Explicitly handle null
+    email: data.email === null ? null : (data.email || undefined), // Explicitly handle null
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
     updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(),
   };
@@ -39,17 +48,43 @@ export const getClients = async (): Promise<Client[]> => {
   return querySnapshot.docs.map(clientFromDoc);
 };
 
-export const addClient = async (clientData: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>): Promise<Client> => {
-  const clientsCollectionRef = collection(db, CLIENTS_COLLECTION);
+export const addClient = async (clientData: ClientImportData): Promise<Client> => {
+  let createdAtTimestamp: Timestamp;
+  if (clientData.createdAt) {
+    try {
+      const date = typeof clientData.createdAt === 'string' ? new Date(clientData.createdAt) : clientData.createdAt;
+      if (isNaN(date.getTime())) {
+        console.warn(`Invalid createdAt date provided for client ${clientData.name || clientData.id}. Using server timestamp. Value: ${clientData.createdAt}`);
+        createdAtTimestamp = serverTimestamp() as Timestamp;
+      } else {
+        createdAtTimestamp = Timestamp.fromDate(date);
+      }
+    } catch (e) {
+      console.warn(`Error parsing createdAt date for client ${clientData.name || clientData.id}. Using server timestamp. Value: ${clientData.createdAt}`, e);
+      createdAtTimestamp = serverTimestamp() as Timestamp;
+    }
+  } else {
+    createdAtTimestamp = serverTimestamp() as Timestamp;
+  }
+
   const dataToSave: Omit<ClientDocument, 'id'> = {
     name: clientData.name,
-    phone: clientData.phone || undefined, // Ensure optional fields are handled
-    email: clientData.email || undefined,
-    // address: clientData.address || undefined, // Removed address
-    createdAt: serverTimestamp() as Timestamp,
+    // Firestore stores null as null, undefined means field is omitted
+    phone: clientData.hasOwnProperty('phone') ? clientData.phone : undefined,
+    email: clientData.hasOwnProperty('email') ? clientData.email : undefined,
+    createdAt: createdAtTimestamp,
     updatedAt: serverTimestamp() as Timestamp,
   };
-  const docRef = await addDoc(clientsCollectionRef, dataToSave);
+
+  let docRef;
+  if (clientData.id) {
+    // Use the provided ID
+    docRef = doc(db, CLIENTS_COLLECTION, clientData.id);
+    await setDoc(docRef, dataToSave);
+  } else {
+    // Let Firestore auto-generate an ID
+    docRef = await addDoc(collection(db, CLIENTS_COLLECTION), dataToSave);
+  }
   const newDocSnap = await getDoc(docRef);
   return clientFromDoc(newDocSnap);
 };
@@ -57,22 +92,18 @@ export const addClient = async (clientData: Omit<Client, 'id' | 'createdAt' | 'u
 export const updateClient = async (clientId: string, clientData: Partial<Omit<Client, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> => {
   const clientDocRef = doc(db, CLIENTS_COLLECTION, clientId);
   
-  // Create a new object for dataToUpdate to avoid modifying clientData directly
   const dataToUpdate: Partial<ClientDocument> = {};
 
-  // Only include fields that are part of ClientDocument
   if (clientData.hasOwnProperty('name')) {
     dataToUpdate.name = clientData.name;
   }
+  // For phone and email, allow setting to null or a new string value
   if (clientData.hasOwnProperty('phone')) {
-    dataToUpdate.phone = clientData.phone || undefined;
+    dataToUpdate.phone = clientData.phone;
   }
   if (clientData.hasOwnProperty('email')) {
-    dataToUpdate.email = clientData.email || undefined;
+    dataToUpdate.email = clientData.email;
   }
-  // if (clientData.hasOwnProperty('address')) { // Removed address
-  //   dataToUpdate.address = clientData.address || undefined;
-  // }
 
   dataToUpdate.updatedAt = serverTimestamp() as Timestamp;
 
@@ -80,14 +111,10 @@ export const updateClient = async (clientId: string, clientData: Partial<Omit<Cl
 };
 
 export const deleteClient = async (clientId: string): Promise<void> => {
-  // 1. Get all projects for this client
   const projectsToDelete = await getProjects(clientId);
-
-  // 2. Delete each project (which will in turn delete its payments and afterSales)
   const deletePromises = projectsToDelete.map(project => deleteProject(project.id));
   await Promise.all(deletePromises);
 
-  // 3. Delete the client itself
   const clientDocRef = doc(db, CLIENTS_COLLECTION, clientId);
   await deleteDoc(clientDocRef);
 };
