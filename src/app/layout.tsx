@@ -7,7 +7,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Briefcase, CalendarDays, Settings, Users } from 'lucide-react'; 
-import { useState, useEffect } from 'react'; // For QueryClient
+import { useState, useEffect } from 'react';
 import { ThemeProvider } from "next-themes";
 
 import './globals.css';
@@ -61,15 +61,15 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-      <QueryClientProvider client={queryClient}> {/* QueryClientProvider now wraps everything else client-side */}
-        {isClient ? (
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            <SidebarProvider>
+      <QueryClientProvider client={queryClient}>
+        <SidebarProvider> {/* SidebarProvider now wraps the conditional logic */}
+          {isClient ? (
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
               <Sidebar collapsible="icon">
                 <SidebarHeader className="p-4">
                   <Link href="/" className="flex items-center gap-2" title="CalReact Home">
@@ -139,30 +139,26 @@ export default function RootLayout({
               </Sidebar>
               
               <SidebarInset>
-                {children} {/* {children} is rendered here, inside all providers */}
+                {children}
               </SidebarInset>
               
-            </SidebarProvider>
-          </ThemeProvider>
-        ) : (
-          // Fallback for when isClient is false (server render, and initial client render before useEffect)
-          // {children} is still inside QueryClientProvider.
-          // ThemeProvider and SidebarProvider are not active here.
-          // This minimal wrapper ensures children have a basic layout context.
-          // A more sophisticated skeleton UI could be rendered here if needed.
-          <div className="flex flex-col min-h-screen">
-            <div className="flex flex-1">
-                <main className="flex-1 p-4"> {/* Mimicking SidebarInset structure for children */}
-                    {children}
-                </main>
+            </ThemeProvider>
+          ) : (
+            // Fallback for when isClient is false (initial client render)
+            // Children are still inside SidebarProvider context.
+            // A minimal layout structure for children, theme might not be applied yet.
+            <div className="flex flex-col min-h-screen">
+              <div className="flex flex-1">
+                  <main className="flex-1 p-4">
+                      {children}
+                  </main>
+              </div>
             </div>
-          </div>
-        )}
-        <Toaster /> {/* Toaster should be available regardless of theme or sidebar state */}
+          )}
+        </SidebarProvider>
+        <Toaster />
       </QueryClientProvider>
       </body>
     </html>
   );
 }
-
-    
