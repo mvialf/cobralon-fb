@@ -27,9 +27,9 @@ const projectFromDoc = (docSnapshot: any): ProjectType => {
     id: docSnapshot.id,
     ...data,
     date: data.date.toDate(), // Should always exist
-    // endDate: data.endDate instanceof Timestamp ? data.endDate.toDate() : undefined, // REMOVED
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
     updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(),
+    isPaid: data.isPaid === undefined ? false : data.isPaid, // Default to false if not set
   } as ProjectType;
 };
 
@@ -94,9 +94,9 @@ export const addProject = async (projectData: ProjectImportData | Omit<ProjectTy
     balance: balance,
     status: restOfProjectData.status,
     collect: restOfProjectData.collect, 
+    isPaid: restOfProjectData.isPaid === undefined ? false : restOfProjectData.isPaid, // Default to false
     createdAt: createdAtTimestamp,
     updatedAt: serverTimestamp() as Timestamp,
-    // endDate: restOfProjectData.endDate ? (restOfProjectData.endDate instanceof Date ? Timestamp.fromDate(restOfProjectData.endDate) : Timestamp.fromDate(new Date(restOfProjectData.endDate as string))) : undefined, // REMOVED
     phone: restOfProjectData.phone || '',
     address: restOfProjectData.address || '',
     commune: restOfProjectData.commune || '',
@@ -130,11 +130,8 @@ export const updateProject = async (projectId: string, projectData: Partial<Omit
   dataToUpdate.updatedAt = serverTimestamp() as Timestamp;
 
   if (restOfProjectData.date) {
-    dataToUpdate.date = Timestamp.fromDate(new Date(restOfProjectData.date)); // Ensure it's a Date object before converting
+    dataToUpdate.date = Timestamp.fromDate(new Date(restOfProjectData.date)); 
   }
-  // if (restOfProjectData.hasOwnProperty('endDate')) { // REMOVED
-  //   dataToUpdate.endDate = restOfProjectData.endDate ? Timestamp.fromDate(new Date(restOfProjectData.endDate)) : undefined;
-  // }
   
   if (restOfProjectData.hasOwnProperty('subtotal') || restOfProjectData.hasOwnProperty('taxRate')) {
     const currentSnap = await getDoc(projectDocRef);
@@ -156,10 +153,10 @@ export const updateProject = async (projectId: string, projectData: Partial<Omit
        dataToUpdate.balance = dataToUpdate.total;
     }
   }
-
-  // Explicitly remove endDate if it's being passed as undefined due to previous logic
-  if (dataToUpdate.hasOwnProperty('endDate') && dataToUpdate.endDate === undefined) {
-    delete dataToUpdate.endDate;
+  
+  // Ensure isPaid is explicitly handled if present in projectData
+  if (projectData.hasOwnProperty('isPaid')) {
+    dataToUpdate.isPaid = projectData.isPaid;
   }
 
 

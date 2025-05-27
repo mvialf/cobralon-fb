@@ -24,9 +24,9 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch'; // Importar Switch
+import { Switch } from '@/components/ui/switch'; 
 import { Edit, Trash2, PlusCircle, Briefcase, Loader2, Search } from 'lucide-react';
-import ProjectModal from '@/components/project-modal'; // Se mantiene por si se usa para editar
+import ProjectModal from '@/components/project-modal'; 
 import { useToast } from '@/hooks/use-toast';
 
 // Helper to format currency (Chilean Pesos example)
@@ -57,8 +57,8 @@ export default function ProjectsPage() {
   const queryClient = useQueryClientHook();
 
   const [filterText, setFilterText] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false); // Se mantiene por si se usa para editar
-  const [selectedProject, setSelectedProject] = useState<ProjectType | undefined>(undefined); // Se mantiene
+  const [isModalOpen, setIsModalOpen] = useState(false); 
+  const [selectedProject, setSelectedProject] = useState<ProjectType | undefined>(undefined); 
   const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
 
 
@@ -77,16 +77,17 @@ export default function ProjectsPage() {
     return new Map(clients.map(client => [client.id, client.name]));
   }, [clients, isLoadingClients]);
 
-  // addProjectMutation se moverá o duplicará en la página de nuevo proyecto
-  // Mantenemos update y delete aquí por ahora para la tabla.
   const updateProjectMutation = useMutation({
     mutationFn: (variables: { projectId: string; projectData: Partial<Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt'>> }) =>
       updateProject(variables.projectId, variables.projectData),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       const updatedProject = projects.find(p => p.id === variables.projectId);
-      toast({ title: "Proyecto Actualizado", description: `"${updatedProject?.projectNumber || 'El proyecto'}" ha sido actualizado.` });
-      handleCloseModal(); // Asumiendo que el modal de edición se cierra
+      // Toast for general updates is good, specific toast for isPaid toggle can be handled by the toggle function
+      if (!variables.projectData.hasOwnProperty('isPaid')) { // Avoid double toast if only isPaid changed
+           toast({ title: "Proyecto Actualizado", description: `"${updatedProject?.projectNumber || 'El proyecto'}" ha sido actualizado.` });
+      }
+      handleCloseModal(); 
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: `No se pudo actualizar el proyecto: ${err.message}`, variant: "destructive" });
@@ -110,7 +111,6 @@ export default function ProjectsPage() {
     },
   });
 
-  // Estas funciones de modal son para la edición, las mantenemos por ahora
   const handleOpenModal = (project?: ProjectType) => {
     setSelectedProject(project);
     setIsModalOpen(true);
@@ -122,17 +122,31 @@ export default function ProjectsPage() {
   };
 
   const handleDeleteProject = (projectId: string) => {
-    // TODO: Añadir confirmación
+    // TODO: Añadir confirmación (AlertDialog)
     deleteProjectMutation.mutate(projectId);
   };
 
-  const handleSaveProjectFromModal = (savedProject: ProjectType) => { // Renombrado para evitar conflicto
+  const handleSaveProjectFromModal = (savedProject: ProjectType) => { 
     if (savedProject.id) {
       const { id, ...projectData } = savedProject;
       updateProjectMutation.mutate({ projectId: id, projectData });
     }
-    // La lógica de añadir se mueve a la nueva página
   };
+
+  const handleToggleIsPaid = async (projectId: string, newIsPaidState: boolean) => {
+    try {
+      await updateProjectMutation.mutateAsync({ projectId, projectData: { isPaid: newIsPaidState } });
+      toast({
+        title: "Estado de Pago Actualizado",
+        description: `El proyecto ha sido marcado como ${newIsPaidState ? 'pagado' : 'no pagado'}.`,
+      });
+    } catch (error) {
+      // Error is already handled by updateProjectMutation.onError
+      // but we can add specific logging here if needed.
+      console.error("Error toggling isPaid status:", error);
+    }
+  };
+
 
   const filteredProjects = useMemo(() => projects.filter(project => {
     const clientName = clientMap.get(project.clientId)?.toLowerCase() || '';
@@ -223,7 +237,7 @@ export default function ProjectsPage() {
                   <TableHead>F. Inicio</TableHead>
                   <TableHead className="text-right">V. Total</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead className="text-center">Pagado</TableHead> {/* Cambiado de "Por Cobrar" */}
+                  <TableHead className="text-center">Pagado</TableHead>
                   <TableHead className="text-right">Abonos</TableHead>
                   <TableHead className="text-right w-[120px]">Acciones</TableHead>
                 </TableRow>
@@ -239,8 +253,7 @@ export default function ProjectsPage() {
                     }
                     const abonos = (project.total ?? 0) - (project.balance ?? 0);
                     const isRowMutating = (updateProjectMutation.variables?.projectId === project.id || deleteProjectMutation.variables === project.id);
-                    const isFullyPaid = (project.balance ?? (project.total || 1)) <= 0; // Consider 0 or negative balance as paid
-
+                    
                     return (
                       <TableRow
                         key={project.id}
@@ -273,17 +286,18 @@ export default function ProjectsPage() {
                             {project.status}
                           </span>
                         </TableCell>
-                        <TableCell className="text-center"> {/* Celda para el Switch */}
+                        <TableCell className="text-center">
                           <Switch
-                            checked={isFullyPaid}
-                            disabled // El switch es de solo lectura
-                            aria-label={isFullyPaid ? "Proyecto pagado completamente" : "Proyecto con saldo pendiente"}
+                            checked={project.isPaid || false}
+                            onCheckedChange={(newCheckedState) => handleToggleIsPaid(project.id, newCheckedState)}
+                            disabled={updateProjectMutation.isPending && updateProjectMutation.variables?.projectId === project.id && updateProjectMutation.variables.projectData.hasOwnProperty('isPaid')}
+                            aria-label={project.isPaid ? "Proyecto marcado como pagado" : "Marcar proyecto como pagado"}
                           />
                         </TableCell>
                         <TableCell className="text-right">{formatCurrency(abonos)}</TableCell>
                         <TableCell className="text-right space-x-1">
                           <Button variant="outline" size="icon" onClick={() => handleOpenModal(project)} aria-label="Editar proyecto" disabled={isMutating}>
-                            {isMutating && updateProjectMutation.variables?.projectId === project.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
+                            {isMutating && updateProjectMutation.variables?.projectId === project.id && !updateProjectMutation.variables.projectData.hasOwnProperty('isPaid') ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
                           </Button>
                           <Button variant="destructive" size="icon" onClick={() => handleDeleteProject(project.id)} aria-label="Eliminar proyecto" disabled={isMutating}>
                             {isRowMutating && deleteProjectMutation.variables === project.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
@@ -294,7 +308,7 @@ export default function ProjectsPage() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-10 text-muted-foreground"> {/* Ajustado colSpan */}
+                    <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                       <Briefcase className="mx-auto h-12 w-12 mb-4" />
                       <p className="text-lg font-semibold">No hay proyectos registrados.</p>
                       <p className="text-sm">Empieza añadiendo tu primer proyecto.</p>
@@ -306,7 +320,7 @@ export default function ProjectsPage() {
           </CardContent>
         </Card>
       </main>
-      {isModalOpen && ( // El modal de edición se mantiene aquí
+      {isModalOpen && ( 
         <ProjectModal
             isOpen={isModalOpen}
             onClose={handleCloseModal}
