@@ -1,27 +1,27 @@
 
 // src/app/layout.tsx
-"use client"; 
+"use client";
 
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Briefcase, CalendarDays, Settings, Users } from 'lucide-react'; 
+import { Briefcase, CalendarDays, Settings, Users, Loader2 } from 'lucide-react'; // Added Loader2
 import { useState, useEffect } from 'react';
 import { ThemeProvider } from "next-themes";
 
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
-import { 
-  SidebarProvider, 
-  Sidebar, 
-  SidebarHeader, 
-  SidebarContent, 
-  SidebarFooter, 
-  SidebarMenu, 
-  SidebarMenuItem, 
-  SidebarMenuButton, 
-  SidebarInset 
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarHeader,
+  SidebarContent,
+  SidebarFooter,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarInset
 } from '@/components/ui/sidebar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -50,26 +50,42 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const pathname = usePathname();
+  // queryClient instance should be stable across re-renders.
+  // It's created once when the RootLayout mounts for the first time.
   const [queryClient] = useState(() => new QueryClient());
-  const [isClient, setIsClient] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    setIsClient(true);
+    setIsMounted(true);
   }, []);
 
+  if (!isMounted) {
+    // Render a loader or null on the server and initial client pass
+    // to prevent rendering children that depend on client-side contexts/hooks too early.
+    return (
+      <html lang="es" suppressHydrationWarning>
+        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+          <div className="flex flex-col h-screen items-center justify-center bg-background text-foreground">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <p className="mt-4 text-muted-foreground">Cargando aplicación...</p>
+          </div>
+        </body>
+      </html>
+    );
+  }
 
+  // Once mounted, render the full application structure with all providers
   return (
     <html lang="es" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-      <QueryClientProvider client={queryClient}>
-        <SidebarProvider> {/* SidebarProvider now wraps the conditional logic */}
-          {isClient ? (
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="system"
-              enableSystem
-              disableTransitionOnChange
-            >
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <SidebarProvider> {/* SidebarProvider might use theme context, so keep inside ThemeProvider */}
               <Sidebar collapsible="icon">
                 <SidebarHeader className="p-4">
                   <Link href="/" className="flex items-center gap-2" title="CalReact Home">
@@ -82,9 +98,9 @@ export default function RootLayout({
                 <SidebarContent>
                   <SidebarMenu>
                     <SidebarMenuItem>
-                      <SidebarMenuButton 
-                        asChild 
-                        isActive={pathname === '/projects' || pathname?.startsWith('/projects/')} 
+                      <SidebarMenuButton
+                        asChild
+                        isActive={pathname === '/projects' || pathname?.startsWith('/projects/')}
                         tooltip={{children: "Proyectos", side:"right"}}
                       >
                         <Link href="/projects">
@@ -94,9 +110,9 @@ export default function RootLayout({
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
-                      <SidebarMenuButton 
-                        asChild 
-                        isActive={pathname === '/'} 
+                      <SidebarMenuButton
+                        asChild
+                        isActive={pathname === '/'}
                         tooltip={{children: "Calendario", side:"right"}}
                       >
                         <Link href="/">
@@ -106,8 +122,8 @@ export default function RootLayout({
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
-                      <SidebarMenuButton 
-                        asChild 
+                      <SidebarMenuButton
+                        asChild
                         isActive={pathname === '/clients'}
                         tooltip={{children: "Clientes", side:"right"}}
                       >
@@ -118,8 +134,8 @@ export default function RootLayout({
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
-                      <SidebarMenuButton 
-                        asChild 
+                      <SidebarMenuButton
+                        asChild
                         isActive={pathname === '/settings'}
                         tooltip={{children: "Configuración", side:"right"}}
                       >
@@ -137,27 +153,14 @@ export default function RootLayout({
                   </p>
                 </SidebarFooter>
               </Sidebar>
-              
+
               <SidebarInset>
                 {children}
               </SidebarInset>
-              
-            </ThemeProvider>
-          ) : (
-            // Fallback for when isClient is false (initial client render)
-            // Children are still inside SidebarProvider context.
-            // A minimal layout structure for children, theme might not be applied yet.
-            <div className="flex flex-col min-h-screen">
-              <div className="flex flex-1">
-                  <main className="flex-1 p-4">
-                      {children}
-                  </main>
-              </div>
-            </div>
-          )}
-        </SidebarProvider>
-        <Toaster />
-      </QueryClientProvider>
+            </SidebarProvider>
+            <Toaster />
+          </ThemeProvider>
+        </QueryClientProvider>
       </body>
     </html>
   );
