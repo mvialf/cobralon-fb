@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Checkbox } from '@/components/ui/checkbox';
 import { Check, ChevronsUpDown, Loader2, Save, XCircle, PlusCircle, ArrowLeftToLine } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -33,6 +34,8 @@ import ClientModal from '@/components/client-modal';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 
+
+const UNINSTALL_TYPE_OPTIONS = ["Aluminio", "Madera", "Fierro", "PVC", "Americano"];
 
 const projectSchema = z.object({
   clientId: z.string().min(1, "Cliente es requerido."),
@@ -138,6 +141,7 @@ export default function EditProjectPage() {
   const [openClientCombobox, setOpenClientCombobox] = useState(false);
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [isClientSearchActive, setIsClientSearchActive] = useState(false);
+  const [openUninstallTypesPopover, setOpenUninstallTypesPopover] = useState(false);
 
   const { data: projectData, isLoading: isLoadingProject, isError: isErrorProject, error: errorProject } = useQuery<ProjectType, Error>({
     queryKey: ['project', projectId],
@@ -233,6 +237,9 @@ export default function EditProjectPage() {
     const { id, createdAt, updatedAt, ...newClientData } = savedClient;
     addClientMutation.mutate(newClientData as Omit<Client, 'id' | 'createdAt' | 'updatedAt'>);
   };
+
+  const uninstallActive = watch("uninstall");
+  const selectedUninstallTypes = watch("uninstallTypes") || [];
 
   if (isLoadingProject || !projectData) { 
     return (
@@ -483,7 +490,7 @@ export default function EditProjectPage() {
                 </div>
             </div>
 
-            {/* Fila 6: Uninstall Switch */}
+            {/* Fila 6: Uninstall Switch & Details */}
             <div className="space-y-4">
                  <div className="flex items-center space-x-2 pt-2">
                     <Controller
@@ -501,6 +508,82 @@ export default function EditProjectPage() {
                     <Label htmlFor="uninstall">Incluye desinstalación</Label>
                 </div>
                 {errors.uninstall && <p className="text-sm text-destructive">{errors.uninstall.message}</p>}
+
+                {uninstallActive && (
+                  <div className="pl-6 space-y-4 border-l-2 border-muted ml-2">
+                    <div>
+                      <Label htmlFor="uninstallTypes">Tipos de Desinstalación</Label>
+                      <Controller
+                        name="uninstallTypes"
+                        control={control}
+                        render={({ field }) => (
+                           <Popover open={openUninstallTypesPopover} onOpenChange={setOpenUninstallTypesPopover}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className="w-full justify-between mt-1"
+                                disabled={isProjectSubmitting || updateProjectMutation.isPending}
+                              >
+                                {selectedUninstallTypes.length > 0
+                                  ? selectedUninstallTypes.join(', ')
+                                  : "Seleccionar tipos..."}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                              <Command>
+                                <CommandInput placeholder="Buscar tipo..." />
+                                <CommandList>
+                                  <CommandEmpty>No se encontró el tipo.</CommandEmpty>
+                                  <CommandGroup>
+                                    {UNINSTALL_TYPE_OPTIONS.map((option) => (
+                                      <CommandItem
+                                        key={option}
+                                        onSelect={() => {
+                                          const currentValues = field.value || [];
+                                          const newValues = currentValues.includes(option)
+                                            ? currentValues.filter(val => val !== option)
+                                            : [...currentValues, option];
+                                          field.onChange(newValues);
+                                        }}
+                                      >
+                                        <Checkbox
+                                          className="mr-2"
+                                          checked={field.value?.includes(option)}
+                                          onCheckedChange={(checked) => {
+                                            const currentValues = field.value || [];
+                                            const newValues = checked
+                                              ? [...currentValues, option]
+                                              : currentValues.filter(val => val !== option);
+                                            field.onChange(newValues);
+                                          }}
+                                        />
+                                        {option}
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      />
+                       {errors.uninstallTypes && <p className="text-sm text-destructive">{(errors.uninstallTypes as any).message}</p>}
+                    </div>
+                    <div>
+                      <Label htmlFor="uninstallOther">Otro Tipo de Desinstalación</Label>
+                      <Input 
+                        id="uninstallOther" 
+                        {...register("uninstallOther")} 
+                        placeholder="Especificar si es 'otro'" 
+                        disabled={isProjectSubmitting || updateProjectMutation.isPending}
+                        className="mt-1"
+                      />
+                      {errors.uninstallOther && <p className="text-sm text-destructive">{errors.uninstallOther.message}</p>}
+                    </div>
+                  </div>
+                )}
             </div>
             
             {/* Calculated Total (Display Only) */}
@@ -520,33 +603,6 @@ export default function EditProjectPage() {
 
             {/* Switches for additional options */}
             <div className="space-y-4 pt-4">
-                {/* This is where the "Incluye desinstalación" switch was, now it's Fila 6 */}
-                {watch("uninstall") && (
-                    <div className="pl-6 space-y-4">
-                        <div>
-                            <Label htmlFor="uninstallTypes">Tipos de Desinstalación (separados por coma)</Label>
-                            <Controller
-                                name="uninstallTypes"
-                                control={control}
-                                render={({ field }) => (
-                                    <Input 
-                                        id="uninstallTypes" 
-                                        value={Array.isArray(field.value) ? field.value.join(', ') : ''}
-                                        onChange={(e) => field.onChange(e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-                                        placeholder="Ej: Marcos antiguos, Protecciones" 
-                                        disabled={isProjectSubmitting || updateProjectMutation.isPending} 
-                                    />
-                                )}
-                            />
-                             {errors.uninstallTypes && <p className="text-sm text-destructive">{(errors.uninstallTypes as any).message}</p>}
-                        </div>
-                        <div>
-                            <Label htmlFor="uninstallOther">Otro Tipo de Desinstalación</Label>
-                            <Input id="uninstallOther" {...register("uninstallOther")} placeholder="Especificar si es 'otro'" disabled={isProjectSubmitting || updateProjectMutation.isPending}/>
-                            {errors.uninstallOther && <p className="text-sm text-destructive">{errors.uninstallOther.message}</p>}
-                        </div>
-                    </div>
-                )}
                  <div className="flex items-center space-x-2">
                      <Controller name="collect" control={control} render={({ field }) => <Switch id="collect" checked={field.value} onCheckedChange={field.onChange} disabled={isProjectSubmitting || updateProjectMutation.isPending} />} />
                     <Label htmlFor="collect">¿Retirar Materiales? <span className="text-destructive">*</span></Label>
@@ -587,3 +643,4 @@ export default function EditProjectPage() {
     </div>
   );
 }
+

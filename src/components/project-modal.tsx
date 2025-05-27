@@ -15,10 +15,16 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Checkbox } from '@/components/ui/checkbox';
+import { ChevronsUpDown } from 'lucide-react';
 import type { ProjectType, ProjectStatus } from '@/types/project';
 import type { Client } from '@/types/client';
 import { useToast } from '@/hooks/use-toast';
 import { format as formatDateFns, parseISO } from 'date-fns'; 
+
+const UNINSTALL_TYPE_OPTIONS = ["Aluminio", "Madera", "Fierro", "PVC", "Americano"];
 
 const formatCurrency = (amount: number | undefined | null) => {
   if (amount === undefined || amount === null) return 'N/A';
@@ -43,7 +49,6 @@ const initialProjectState: Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt' | 
   taxRate: 19, 
   status: 'ingresado',
   collect: false, 
-  // endDate: undefined, // REMOVED
   phone: '',
   address: '',
   commune: '',
@@ -55,12 +60,14 @@ const initialProjectState: Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt' | 
   uninstallOther: '',
   glosa: '',
   isHidden: false,
+  isPaid: false,
 };
 
 
 const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, projectData, clients }) => {
   const [project, setProject] = useState<Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt' | 'total' | 'balance'> & { id?: string }>(initialProjectState);
   const { toast } = useToast();
+  const [openUninstallTypesPopover, setOpenUninstallTypesPopover] = useState(false);
 
   const formatDateForInput = (date: Date | string | undefined): string => {
     if (!date) return '';
@@ -77,15 +84,16 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
 
   useEffect(() => {
     if (projectData) {
-      const { endDate, ...restData } = projectData; // Destructure to remove endDate
       setProject({
         ...initialProjectState, 
-        ...restData, 
+        ...projectData, 
         date: projectData.date, 
-        // endDate: projectData.endDate, // REMOVED
         collect: projectData.collect ?? false,
         uninstall: projectData.uninstall ?? false,
+        uninstallTypes: Array.isArray(projectData.uninstallTypes) ? projectData.uninstallTypes : [],
+        uninstallOther: projectData.uninstallOther || '',
         isHidden: projectData.isHidden ?? false,
+        isPaid: projectData.isPaid ?? false,
       });
     } else {
       setProject({...initialProjectState, date: new Date() });
@@ -100,9 +108,6 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
     } else if (type === 'date' && name === 'date') {
        setProject(prev => ({ ...prev, date: value ? parseISO(value) : new Date() }));
     } 
-    // else if (type === 'date' && name === 'endDate') { // REMOVED
-    //    setProject(prev => ({ ...prev, endDate: value ? parseISO(value) : undefined }));
-    // }
     else {
       setProject(prev => ({ ...prev, [name]: value }));
     }
@@ -145,11 +150,13 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
       total: total,
       balance: projectData?.balance !== undefined ? projectData.balance : total,
       date: project.date instanceof Date ? project.date : parseISO(project.date as unknown as string),
-      // endDate: project.endDate ? (project.endDate instanceof Date ? project.endDate : parseISO(project.endDate as unknown as string)) : undefined, // REMOVED
       collect: project.collect ?? false,
       uninstall: project.uninstall ?? false,
+      uninstallTypes: Array.isArray(project.uninstallTypes) ? project.uninstallTypes : [],
+      uninstallOther: project.uninstallOther || '',
       isHidden: project.isHidden ?? false,
-    } as ProjectType; // Added 'as ProjectType' for stricter type checking after removing endDate
+      isPaid: project.isPaid ?? false,
+    } as ProjectType; 
 
     onSave(projectToSave);
   };
@@ -167,13 +174,13 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
           {/* Row 1: Project Number, Client */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="projectNumber">Nº Proyecto <span className="text-destructive">*</span></Label>
-              <Input id="projectNumber" name="projectNumber" value={project.projectNumber} onChange={handleChange} placeholder="Ej: P2024-001" />
+              <Label htmlFor="projectNumber-modal">Nº Proyecto <span className="text-destructive">*</span></Label>
+              <Input id="projectNumber-modal" name="projectNumber" value={project.projectNumber} onChange={handleChange} placeholder="Ej: P2024-001" />
             </div>
             <div>
-              <Label htmlFor="clientId">Cliente <span className="text-destructive">*</span></Label>
+              <Label htmlFor="clientId-modal">Cliente <span className="text-destructive">*</span></Label>
               <Select name="clientId" value={project.clientId} onValueChange={(value) => handleSelectChange('clientId', value)}>
-                <SelectTrigger>
+                <SelectTrigger id="clientId-modal">
                   <SelectValue placeholder="Seleccionar cliente" />
                 </SelectTrigger>
                 <SelectContent>
@@ -187,31 +194,27 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
 
           {/* Row 2: Description */}
           <div>
-            <Label htmlFor="description">Descripción</Label>
-            <Textarea id="description" name="description" value={project.description || ''} onChange={handleChange} placeholder="Breve descripción del proyecto" />
+            <Label htmlFor="description-modal">Descripción</Label>
+            <Textarea id="description-modal" name="description" value={project.description || ''} onChange={handleChange} placeholder="Breve descripción del proyecto" />
           </div>
 
-          {/* Row 3: Start Date, End Date REMOVED */}
-          <div className="grid grid-cols-1 md:grid-cols-1 gap-4"> {/* Changed to 1 column */}
+          {/* Row 3: Start Date */}
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
             <div>
-              <Label htmlFor="date">Fecha de Inicio <span className="text-destructive">*</span></Label>
-              <Input id="date" name="date" type="date" value={formatDateForInput(project.date)} onChange={handleChange} />
+              <Label htmlFor="date-modal">Fecha de Inicio <span className="text-destructive">*</span></Label>
+              <Input id="date-modal" name="date" type="date" value={formatDateForInput(project.date)} onChange={handleChange} />
             </div>
-            {/* <div> // REMOVED EndDate Field
-              <Label htmlFor="endDate">Fecha de Término (Estimada)</Label>
-              <Input id="endDate" name="endDate" type="date" value={formatDateForInput(project.endDate)} onChange={handleChange} />
-            </div> */}
           </div>
 
           {/* Row 4: Subtotal, Tax Rate */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="subtotal">Subtotal <span className="text-destructive">*</span></Label>
-              <Input id="subtotal" name="subtotal" type="number" value={project.subtotal} onChange={handleChange} placeholder="0" />
+              <Label htmlFor="subtotal-modal">Subtotal <span className="text-destructive">*</span></Label>
+              <Input id="subtotal-modal" name="subtotal" type="number" value={project.subtotal} onChange={handleChange} placeholder="0" />
             </div>
             <div>
-              <Label htmlFor="taxRate">Tasa de Impuesto (%) <span className="text-destructive">*</span></Label>
-              <Input id="taxRate" name="taxRate" type="number" value={project.taxRate} onChange={handleChange} placeholder="19" />
+              <Label htmlFor="taxRate-modal">Tasa de Impuesto (%) <span className="text-destructive">*</span></Label>
+              <Input id="taxRate-modal" name="taxRate" type="number" value={project.taxRate} onChange={handleChange} placeholder="19" />
             </div>
           </div>
            {/* Display Calculated Total */}
@@ -224,9 +227,9 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
           {/* Row 5: Status */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="status">Estado <span className="text-destructive">*</span></Label>
+              <Label htmlFor="status-modal">Estado <span className="text-destructive">*</span></Label>
               <Select name="status" value={project.status} onValueChange={(value) => handleSelectChange('status', value as ProjectStatus)}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar estado" /></SelectTrigger>
+                <SelectTrigger id="status-modal"><SelectValue placeholder="Seleccionar estado" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ingresado">Ingresado</SelectItem>
                   <SelectItem value="en progreso">En Progreso</SelectItem>
@@ -241,77 +244,131 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
            {/* Optional Contact and Location Info */}
            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="phone">Teléfono Contacto (Proyecto)</Label>
-              <Input id="phone" name="phone" value={project.phone || ''} onChange={handleChange} placeholder="Teléfono opcional" />
+              <Label htmlFor="phone-modal">Teléfono Contacto (Proyecto)</Label>
+              <Input id="phone-modal" name="phone" value={project.phone || ''} onChange={handleChange} placeholder="Teléfono opcional" />
             </div>
             <div>
-              <Label htmlFor="address">Dirección (Proyecto)</Label>
-              <Input id="address" name="address" value={project.address || ''} onChange={handleChange} placeholder="Dirección de la obra" />
+              <Label htmlFor="address-modal">Dirección (Proyecto)</Label>
+              <Input id="address-modal" name="address" value={project.address || ''} onChange={handleChange} placeholder="Dirección de la obra" />
             </div>
           </div>
            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="commune">Comuna</Label>
-              <Input id="commune" name="commune" value={project.commune || ''} onChange={handleChange} placeholder="Comuna" />
+              <Label htmlFor="commune-modal">Comuna</Label>
+              <Input id="commune-modal" name="commune" value={project.commune || ''} onChange={handleChange} placeholder="Comuna" />
             </div>
             <div>
-              <Label htmlFor="region">Región</Label>
-              <Input id="region" name="region" value={project.region || 'RM'} onChange={handleChange} placeholder="Región" />
+              <Label htmlFor="region-modal">Región</Label>
+              <Input id="region-modal" name="region" value={project.region || 'RM'} onChange={handleChange} placeholder="Región" />
             </div>
           </div>
 
           {/* Technical Details */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-                <Label htmlFor="windowsCount">Cantidad de Ventanas</Label>
-                <Input id="windowsCount" name="windowsCount" type="number" value={project.windowsCount || 0} onChange={handleChange} />
+                <Label htmlFor="windowsCount-modal">Cantidad de Ventanas</Label>
+                <Input id="windowsCount-modal" name="windowsCount" type="number" value={project.windowsCount || 0} onChange={handleChange} />
             </div>
             <div>
-                <Label htmlFor="squareMeters">Metros Cuadrados (m²)</Label>
-                <Input id="squareMeters" name="squareMeters" type="number" step="any" value={project.squareMeters || 0} onChange={handleChange} />
+                <Label htmlFor="squareMeters-modal">Metros Cuadrados (m²)</Label>
+                <Input id="squareMeters-modal" name="squareMeters" type="number" step="any" value={project.squareMeters || 0} onChange={handleChange} />
             </div>
           </div>
 
           {/* Uninstall Details */}
           <div className="space-y-4 border p-4 rounded-md">
             <div className="flex items-center space-x-2">
-                <Switch id="uninstall" name="uninstall" checked={project.uninstall || false} onCheckedChange={(checked) => handleSwitchChange('uninstall', checked)} />
-                <Label htmlFor="uninstall">¿Requiere Desinstalación?</Label>
+                <Switch id="uninstall-modal" name="uninstall" checked={project.uninstall || false} onCheckedChange={(checked) => handleSwitchChange('uninstall', checked)} />
+                <Label htmlFor="uninstall-modal">¿Requiere Desinstalación?</Label>
             </div>
             {project.uninstall && (
-                <>
+                <div className="pl-6 space-y-4 border-l-2 border-muted ml-2">
                     <div>
-                        <Label htmlFor="uninstallTypes">Tipos de Desinstalación (separados por coma)</Label>
-                        <Input
-                            id="uninstallTypes"
-                            name="uninstallTypes"
-                            value={Array.isArray(project.uninstallTypes) ? project.uninstallTypes.join(', ') : ''}
-                            onChange={(e) => setProject(prev => ({ ...prev, uninstallTypes: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
-                            placeholder="Ej: Marcos antiguos, Protecciones"
+                        <Label htmlFor="uninstallTypes-modal-trigger">Tipos de Desinstalación</Label>
+                        <Popover open={openUninstallTypesPopover} onOpenChange={setOpenUninstallTypesPopover}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                id="uninstallTypes-modal-trigger"
+                                className="w-full justify-between mt-1"
+                              >
+                                {(project.uninstallTypes || []).length > 0
+                                  ? (project.uninstallTypes || []).join(', ')
+                                  : "Seleccionar tipos..."}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                              <Command>
+                                <CommandInput placeholder="Buscar tipo..." />
+                                <CommandList>
+                                  <CommandEmpty>No se encontró el tipo.</CommandEmpty>
+                                  <CommandGroup>
+                                    {UNINSTALL_TYPE_OPTIONS.map((option) => (
+                                      <CommandItem
+                                        key={`modal-${option}`}
+                                        onSelect={() => {
+                                          const currentValues = project.uninstallTypes || [];
+                                          const newValues = currentValues.includes(option)
+                                            ? currentValues.filter(val => val !== option)
+                                            : [...currentValues, option];
+                                          setProject(prev => ({...prev, uninstallTypes: newValues}));
+                                        }}
+                                      >
+                                        <Checkbox
+                                          className="mr-2"
+                                          checked={project.uninstallTypes?.includes(option)}
+                                          onCheckedChange={(checked) => {
+                                            const currentValues = project.uninstallTypes || [];
+                                            const newValues = checked
+                                              ? [...currentValues, option]
+                                              : currentValues.filter(val => val !== option);
+                                            setProject(prev => ({...prev, uninstallTypes: newValues}));
+                                          }}
+                                        />
+                                        {option}
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                    </div>
+                    <div>
+                        <Label htmlFor="uninstallOther-modal">Otro Tipo de Desinstalación</Label>
+                        <Input 
+                            id="uninstallOther-modal" 
+                            name="uninstallOther" 
+                            value={project.uninstallOther || ''} 
+                            onChange={handleChange} 
+                            placeholder="Especificar si es 'otro'" 
+                            className="mt-1"
                         />
                     </div>
-                    <div>
-                        <Label htmlFor="uninstallOther">Otro Tipo de Desinstalación</Label>
-                        <Input id="uninstallOther" name="uninstallOther" value={project.uninstallOther || ''} onChange={handleChange} placeholder="Especificar si es 'otro'" />
-                    </div>
-                </>
+                </div>
             )}
           </div>
 
           {/* Glosa and Collect */}
           <div>
-            <Label htmlFor="glosa">Glosa / Notas Adicionales</Label>
-            <Textarea id="glosa" name="glosa" value={project.glosa || ''} onChange={handleChange} placeholder="Notas importantes, observaciones del proyecto..." />
+            <Label htmlFor="glosa-modal">Glosa / Notas Adicionales</Label>
+            <Textarea id="glosa-modal" name="glosa" value={project.glosa || ''} onChange={handleChange} placeholder="Notas importantes, observaciones del proyecto..." />
           </div>
 
           <div className="flex items-center space-x-2">
-            <Switch id="collect" name="collect" checked={project.collect} onCheckedChange={(checked) => handleSwitchChange('collect', checked)} />
-            <Label htmlFor="collect">¿Retirar Materiales? <span className="text-destructive">*</span></Label>
+            <Switch id="collect-modal" name="collect" checked={project.collect} onCheckedChange={(checked) => handleSwitchChange('collect', checked)} />
+            <Label htmlFor="collect-modal">¿Retirar Materiales? <span className="text-destructive">*</span></Label>
           </div>
 
           <div className="flex items-center space-x-2">
-            <Switch id="isHidden" name="isHidden" checked={project.isHidden || false} onCheckedChange={(checked) => handleSwitchChange('isHidden', checked)} />
-            <Label htmlFor="isHidden">Ocultar Proyecto (Archivar)</Label>
+            <Switch id="isHidden-modal" name="isHidden" checked={project.isHidden || false} onCheckedChange={(checked) => handleSwitchChange('isHidden', checked)} />
+            <Label htmlFor="isHidden-modal">Ocultar Proyecto (Archivar)</Label>
+          </div>
+           <div className="flex items-center space-x-2">
+            <Switch id="isPaid-modal" name="isPaid" checked={project.isPaid || false} onCheckedChange={(checked) => handleSwitchChange('isPaid', checked)} />
+            <Label htmlFor="isPaid-modal">Proyecto Pagado Completamente</Label>
           </div>
 
         </div>
@@ -327,3 +384,4 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
 };
 
 export default ProjectModal;
+

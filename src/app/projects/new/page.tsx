@@ -26,12 +26,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card'; 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Checkbox } from '@/components/ui/checkbox';
 import { Check, ChevronsUpDown, Loader2, Save, XCircle, PlusCircle, ArrowLeftToLine } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import ClientModal from '@/components/client-modal';
 import { Switch } from '@/components/ui/switch';
 
+
+const UNINSTALL_TYPE_OPTIONS = ["Aluminio", "Madera", "Fierro", "PVC", "Americano"];
 
 const projectSchema = z.object({
   clientId: z.string().min(1, "Cliente es requerido."),
@@ -63,7 +66,7 @@ const projectSchema = z.object({
   address: z.string().optional(),
   description: z.string().optional(),
   uninstall: z.boolean().default(false),
-  uninstallTypes: z.array(z.string()).default([]),
+  uninstallTypes: z.array(z.string()).optional().default([]),
   uninstallOther: z.string().optional(),
   collect: z.boolean().default(false),
   isHidden: z.boolean().default(false),
@@ -90,6 +93,8 @@ export default function NewProjectPage() {
   const [openClientCombobox, setOpenClientCombobox] = useState(false);
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [isClientSearchActive, setIsClientSearchActive] = useState(false);
+  const [openUninstallTypesPopover, setOpenUninstallTypesPopover] = useState(false);
+
 
   const { data: clients = [], isLoading: isLoadingClients } = useQuery<Client[], Error>({
     queryKey: ['clients'],
@@ -166,7 +171,7 @@ export default function NewProjectPage() {
       commune: data.commune || '',
       region: data.region || 'RM',
       uninstall: data.uninstall || false,
-      uninstallTypes: data.uninstallTypes || [],
+      uninstallTypes: Array.isArray(data.uninstallTypes) ? data.uninstallTypes : [],
       uninstallOther: data.uninstallOther || '',
       glosa: data.glosa || '',
       collect: data.collect || false,
@@ -176,6 +181,8 @@ export default function NewProjectPage() {
   };
 
   const selectedClientId = watch("clientId");
+  const uninstallActive = watch("uninstall");
+  const selectedUninstallTypes = watch("uninstallTypes") || [];
 
   const handleOpenClientModal = () => {
     setOpenClientCombobox(false); 
@@ -402,7 +409,7 @@ export default function NewProjectPage() {
                 </div>
             </div>
             
-            {/* Fila 6: Switches (Uninstall) */}
+            {/* Fila 6: Switches (Uninstall) & Details */}
             <div className="space-y-4">
                 <div className="flex items-center space-x-2 pt-2">
                     <Controller
@@ -420,6 +427,82 @@ export default function NewProjectPage() {
                     <Label htmlFor="uninstall">Incluye desinstalación</Label>
                 </div>
                 {errors.uninstall && <p className="text-sm text-destructive">{errors.uninstall.message}</p>}
+
+                {uninstallActive && (
+                  <div className="pl-6 space-y-4 border-l-2 border-muted ml-2">
+                    <div>
+                      <Label htmlFor="uninstallTypes">Tipos de Desinstalación</Label>
+                      <Controller
+                        name="uninstallTypes"
+                        control={control}
+                        render={({ field }) => (
+                          <Popover open={openUninstallTypesPopover} onOpenChange={setOpenUninstallTypesPopover}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className="w-full justify-between mt-1"
+                                disabled={isProjectSubmitting}
+                              >
+                                {selectedUninstallTypes.length > 0
+                                  ? selectedUninstallTypes.join(', ')
+                                  : "Seleccionar tipos..."}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                              <Command>
+                                <CommandInput placeholder="Buscar tipo..." />
+                                <CommandList>
+                                  <CommandEmpty>No se encontró el tipo.</CommandEmpty>
+                                  <CommandGroup>
+                                    {UNINSTALL_TYPE_OPTIONS.map((option) => (
+                                      <CommandItem
+                                        key={option}
+                                        onSelect={() => {
+                                          const currentValues = field.value || [];
+                                          const newValues = currentValues.includes(option)
+                                            ? currentValues.filter(val => val !== option)
+                                            : [...currentValues, option];
+                                          field.onChange(newValues);
+                                        }}
+                                      >
+                                        <Checkbox
+                                          className="mr-2"
+                                          checked={field.value?.includes(option)}
+                                          onCheckedChange={(checked) => {
+                                            const currentValues = field.value || [];
+                                            const newValues = checked
+                                              ? [...currentValues, option]
+                                              : currentValues.filter(val => val !== option);
+                                            field.onChange(newValues);
+                                          }}
+                                        />
+                                        {option}
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      />
+                      {errors.uninstallTypes && <p className="text-sm text-destructive">{(errors.uninstallTypes as any).message}</p>}
+                    </div>
+                    <div>
+                      <Label htmlFor="uninstallOther">Otro Tipo de Desinstalación</Label>
+                      <Input 
+                        id="uninstallOther" 
+                        {...register("uninstallOther")} 
+                        placeholder="Especificar si es 'otro'" 
+                        disabled={isProjectSubmitting} 
+                        className="mt-1"
+                      />
+                      {errors.uninstallOther && <p className="text-sm text-destructive">{errors.uninstallOther.message}</p>}
+                    </div>
+                  </div>
+                )}
             </div>
             
             {/* Calculated Total (Display Only) */}
@@ -460,3 +543,4 @@ export default function NewProjectPage() {
     </div>
   );
 }
+
