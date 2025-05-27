@@ -2,7 +2,6 @@
 import type { Timestamp } from 'firebase/firestore';
 
 export type ProjectStatus = 'ingresado' | 'en progreso' | 'completado' | 'cancelado' | 'pendiente aprobación' | string;
-// export type ProjectClassification = 'bajo' | 'medio' | 'alto' | string; // Removed classification
 
 export interface ProjectType {
   id: string;
@@ -17,8 +16,7 @@ export interface ProjectType {
   createdAt?: Date;
   updatedAt?: Date;
   status: ProjectStatus;
-  endDate?: Date; // Completion or projected end date
-  // classification: ProjectClassification; // Removed classification
+  // endDate?: Date; // Completion or projected end date - REMOVED
   phone?: string; // Contact phone for the project, might differ from client
   address?: string; // Project site address
   commune?: string;
@@ -34,15 +32,15 @@ export interface ProjectType {
 }
 
 // Helper type for Firestore document structure
-export interface ProjectDocument extends Omit<ProjectType, 'id' | 'date' | 'endDate' | 'createdAt' | 'updatedAt'> {
+export interface ProjectDocument extends Omit<ProjectType, 'id' | 'date' | /* 'endDate' | */ 'createdAt' | 'updatedAt'> {
   date: Timestamp;
-  endDate?: Timestamp;
+  // endDate?: Timestamp; // REMOVED
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
 
 // Interface for data used when importing projects
-export interface ProjectImportData extends Partial<Omit<ProjectType, 'total' | 'balance' | 'updatedAt'>> {
+export interface ProjectImportData extends Partial<Omit<ProjectType, 'total' | 'balance' | 'updatedAt' | 'date' /* | 'endDate' */ | 'createdAt' >> {
   id?: string; // If provided, this ID will be used for the document.
   projectNumber: string;
   clientId: string;
@@ -50,8 +48,7 @@ export interface ProjectImportData extends Partial<Omit<ProjectType, 'total' | '
   subtotal: number;
   taxRate: number;
   status: ProjectStatus;
-  // classification: ProjectClassification; // Removed classification
   collect: boolean;
   createdAt?: string | Date; // Can be string from JSON or Date object
-  endDate?: string | Date;
+  // endDate?: string | Date; // REMOVED
 }

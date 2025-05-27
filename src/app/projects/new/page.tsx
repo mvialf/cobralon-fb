@@ -61,8 +61,7 @@ const projectSchema = z.object({
   region: z.string().optional().default('RM'),
   address: z.string().optional(),
   description: z.string().optional(),
-  endDate: z.date().optional(),
-  // classification: z.enum(['bajo', 'medio', 'alto'] as [string, ...string[]]).default('bajo'), // Removed classification
+  // endDate: z.date().optional(), // REMOVED
   uninstall: z.boolean().default(false),
   uninstallTypes: z.array(z.string()).default([]),
   uninstallOther: z.string().optional(),
@@ -111,7 +110,6 @@ export default function NewProjectPage() {
       phone: '',
       commune: '',
       address: '',
-      // classification: 'bajo', // Removed classification
       uninstall: false,
       uninstallTypes: [],
       collect: false,
@@ -151,7 +149,7 @@ export default function NewProjectPage() {
     const total = subtotal * (1 + taxRate / 100);
     const balance = total;
 
-    const projectDataToSave: Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt'> = {
+    const projectDataToSave: Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt' | 'total' | 'balance'> = {
       ...data,
       date: data.date,
       subtotal,
@@ -161,8 +159,7 @@ export default function NewProjectPage() {
       windowsCount: Number(data.windowsCount) || 0,
       squareMeters: Number(data.squareMeters) || 0,
       description: data.description || '',
-      endDate: data.endDate,
-      // classification: data.classification || 'bajo', // Removed classification
+      // endDate: data.endDate, // REMOVED
       phone: data.phone || '',
       address: data.address || '',
       commune: data.commune || '',

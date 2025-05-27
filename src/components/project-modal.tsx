@@ -42,9 +42,8 @@ const initialProjectState: Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt' | 
   subtotal: 0,
   taxRate: 19, 
   status: 'ingresado',
-  // classification: 'bajo', // Removed classification
   collect: false, 
-  endDate: undefined,
+  // endDate: undefined, // REMOVED
   phone: '',
   address: '',
   commune: '',
@@ -78,11 +77,12 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
 
   useEffect(() => {
     if (projectData) {
+      const { endDate, ...restData } = projectData; // Destructure to remove endDate
       setProject({
         ...initialProjectState, 
-        ...projectData, 
+        ...restData, 
         date: projectData.date, 
-        endDate: projectData.endDate, 
+        // endDate: projectData.endDate, // REMOVED
         collect: projectData.collect ?? false,
         uninstall: projectData.uninstall ?? false,
         isHidden: projectData.isHidden ?? false,
@@ -99,15 +99,16 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
       setProject(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
     } else if (type === 'date' && name === 'date') {
        setProject(prev => ({ ...prev, date: value ? parseISO(value) : new Date() }));
-    } else if (type === 'date' && name === 'endDate') {
-       setProject(prev => ({ ...prev, endDate: value ? parseISO(value) : undefined }));
-    }
+    } 
+    // else if (type === 'date' && name === 'endDate') { // REMOVED
+    //    setProject(prev => ({ ...prev, endDate: value ? parseISO(value) : undefined }));
+    // }
     else {
       setProject(prev => ({ ...prev, [name]: value }));
     }
   };
 
-  const handleSelectChange = (name: keyof Omit<ProjectType, 'classification'>, value: string) => {
+  const handleSelectChange = (name: keyof Omit<ProjectType, 'endDate'>, value: string) => {
     setProject(prev => ({ ...prev, [name]: value as any }));
   };
 
@@ -144,11 +145,11 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
       total: total,
       balance: projectData?.balance !== undefined ? projectData.balance : total,
       date: project.date instanceof Date ? project.date : parseISO(project.date as unknown as string),
-      endDate: project.endDate ? (project.endDate instanceof Date ? project.endDate : parseISO(project.endDate as unknown as string)) : undefined,
+      // endDate: project.endDate ? (project.endDate instanceof Date ? project.endDate : parseISO(project.endDate as unknown as string)) : undefined, // REMOVED
       collect: project.collect ?? false,
       uninstall: project.uninstall ?? false,
       isHidden: project.isHidden ?? false,
-    };
+    } as ProjectType; // Added 'as ProjectType' for stricter type checking after removing endDate
 
     onSave(projectToSave);
   };
@@ -190,16 +191,16 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
             <Textarea id="description" name="description" value={project.description || ''} onChange={handleChange} placeholder="Breve descripción del proyecto" />
           </div>
 
-          {/* Row 3: Start Date, End Date */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Row 3: Start Date, End Date REMOVED */}
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-4"> {/* Changed to 1 column */}
             <div>
               <Label htmlFor="date">Fecha de Inicio <span className="text-destructive">*</span></Label>
               <Input id="date" name="date" type="date" value={formatDateForInput(project.date)} onChange={handleChange} />
             </div>
-            <div>
+            {/* <div> // REMOVED EndDate Field
               <Label htmlFor="endDate">Fecha de Término (Estimada)</Label>
               <Input id="endDate" name="endDate" type="date" value={formatDateForInput(project.endDate)} onChange={handleChange} />
-            </div>
+            </div> */}
           </div>
 
           {/* Row 4: Subtotal, Tax Rate */}
@@ -235,7 +236,6 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
                 </SelectContent>
               </Select>
             </div>
-            {/* Classification removed from here */}
           </div>
 
            {/* Optional Contact and Location Info */}

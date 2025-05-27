@@ -27,10 +27,9 @@ const projectFromDoc = (docSnapshot: any): ProjectType => {
     id: docSnapshot.id,
     ...data,
     date: data.date.toDate(), // Should always exist
-    endDate: data.endDate instanceof Timestamp ? data.endDate.toDate() : undefined,
+    // endDate: data.endDate instanceof Timestamp ? data.endDate.toDate() : undefined, // REMOVED
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
     updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(),
-    // classification is removed from ProjectType, so no mapping needed here
   } as ProjectType;
 };
 
@@ -79,10 +78,9 @@ export const addProject = async (projectData: ProjectImportData | Omit<ProjectTy
   const subtotal = Number(projectData.subtotal) || 0;
   const taxRate = Number(projectData.taxRate) || 0;
   const total = subtotal * (1 + taxRate / 100);
-  const balance = total; // For new projects, balance starts as total
+  const balance = total; 
 
-  // Remove classification if it exists in projectData, as it's no longer part of the schema
-  const { classification, ...restOfProjectData } = projectData as any;
+  const { ...restOfProjectData } = projectData as any;
 
 
   const dataToSave: Omit<ProjectDocument, 'id'> = {
@@ -95,11 +93,10 @@ export const addProject = async (projectData: ProjectImportData | Omit<ProjectTy
     total: total,
     balance: balance,
     status: restOfProjectData.status,
-    // classification: restOfProjectData.classification, // Removed classification
-    collect: restOfProjectData.collect, // 'collect' is now non-optional
+    collect: restOfProjectData.collect, 
     createdAt: createdAtTimestamp,
     updatedAt: serverTimestamp() as Timestamp,
-    endDate: restOfProjectData.endDate ? (restOfProjectData.endDate instanceof Date ? Timestamp.fromDate(restOfProjectData.endDate) : Timestamp.fromDate(new Date(restOfProjectData.endDate as string))) : undefined,
+    // endDate: restOfProjectData.endDate ? (restOfProjectData.endDate instanceof Date ? Timestamp.fromDate(restOfProjectData.endDate) : Timestamp.fromDate(new Date(restOfProjectData.endDate as string))) : undefined, // REMOVED
     phone: restOfProjectData.phone || '',
     address: restOfProjectData.address || '',
     commune: restOfProjectData.commune || '',
@@ -128,16 +125,16 @@ export const addProject = async (projectData: ProjectImportData | Omit<ProjectTy
 export const updateProject = async (projectId: string, projectData: Partial<Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> => {
   const projectDocRef = doc(db, PROJECTS_COLLECTION, projectId);
   
-  const { classification, ...restOfProjectData } = projectData as any;
+  const { ...restOfProjectData } = projectData as any;
   const dataToUpdate: { [key: string]: any } = { ...restOfProjectData };
   dataToUpdate.updatedAt = serverTimestamp() as Timestamp;
 
   if (restOfProjectData.date) {
-    dataToUpdate.date = Timestamp.fromDate(restOfProjectData.date);
+    dataToUpdate.date = Timestamp.fromDate(new Date(restOfProjectData.date)); // Ensure it's a Date object before converting
   }
-  if (restOfProjectData.hasOwnProperty('endDate')) { 
-    dataToUpdate.endDate = restOfProjectData.endDate ? Timestamp.fromDate(restOfProjectData.endDate) : undefined;
-  }
+  // if (restOfProjectData.hasOwnProperty('endDate')) { // REMOVED
+  //   dataToUpdate.endDate = restOfProjectData.endDate ? Timestamp.fromDate(new Date(restOfProjectData.endDate)) : undefined;
+  // }
   
   if (restOfProjectData.hasOwnProperty('subtotal') || restOfProjectData.hasOwnProperty('taxRate')) {
     const currentSnap = await getDoc(projectDocRef);
@@ -159,6 +156,12 @@ export const updateProject = async (projectId: string, projectData: Partial<Omit
        dataToUpdate.balance = dataToUpdate.total;
     }
   }
+
+  // Explicitly remove endDate if it's being passed as undefined due to previous logic
+  if (dataToUpdate.hasOwnProperty('endDate') && dataToUpdate.endDate === undefined) {
+    delete dataToUpdate.endDate;
+  }
+
 
   await updateDoc(projectDocRef, dataToUpdate);
 };

@@ -57,7 +57,6 @@ const projectJsonSchemaExample = `
     "taxRate": 19 (requerido, ej. 19 para 19%)",
     "status": "ingresado (requerido, ej: ingresado, en progreso, completado, etc.)",
     "collect": true (requerido, boolean: true o false)",
-    "endDate": "2024-12-31 (opcional, YYYY-MM-DD o ISO 8601)",
     "createdAt": "2023-10-26T10:00:00.000Z (opcional, formato ISO 8601 o YYYY-MM-DD)",
     "glosa": "Glosa breve o notas adicionales (opcional)",
     "phone": "+56912345678 (opcional, teléfono específico del proyecto)",
@@ -139,11 +138,9 @@ export default function SettingsPage() {
           name: item.name,
         };
         
-        // Optional fields: id, phone, email, createdAt
         if (item.id && typeof item.id === 'string' && item.id.trim() !== '') {
           clientPayload.id = item.id.trim();
         }
-        // For phone and email, allow explicit null or a string value
         if (item.hasOwnProperty('phone')) {
             clientPayload.phone = item.phone === null ? null : String(item.phone);
         }
@@ -151,12 +148,10 @@ export default function SettingsPage() {
             clientPayload.email = item.email === null ? null : String(item.email);
         }
 
-        // Handle createdAt from JSON (string or Date)
         if (item.createdAt) {
           if (typeof item.createdAt === 'string' || item.createdAt instanceof Date) {
             const dateTest = new Date(item.createdAt);
             if (isNaN(dateTest.getTime())) {
-              // If date is invalid, service will use serverTimestamp
               console.warn(`Fecha 'createdAt' inválida para cliente ${item.name || item.id}, se usará valor por defecto del servidor. Valor recibido:`, item.createdAt);
             } else {
               clientPayload.createdAt = dateTest;
@@ -243,14 +238,14 @@ export default function SettingsPage() {
       const importPromises = validProjectItems.map(async (proj) => {
         try {
             const currentProjTyped = proj as ProjectImportData; 
-            const requiredFields: (keyof Omit<ProjectImportData, 'id' | 'createdAt' | 'endDate' | 'description' | 'glosa' | 'phone' | 'address' | 'commune' | 'region' | 'windowsCount' | 'squareMeters' | 'uninstall' | 'uninstallTypes' | 'uninstallOther' | 'isHidden'>)[] = ['projectNumber', 'clientId', 'date', 'subtotal', 'taxRate', 'status', 'collect'];
+            const requiredFields: (keyof Omit<ProjectImportData, 'id' | 'createdAt' | /* 'endDate' | */ 'description' | 'glosa' | 'phone' | 'address' | 'commune' | 'region' | 'windowsCount' | 'squareMeters' | 'uninstall' | 'uninstallTypes' | 'uninstallOther' | 'isHidden'>)[] = ['projectNumber', 'clientId', 'date', 'subtotal', 'taxRate', 'status', 'collect'];
             
             const missingFields = requiredFields.filter(field => {
               const value = currentProjTyped[field as keyof ProjectImportData];
-              if (field === 'collect') return typeof value !== 'boolean'; // Collect must be a boolean
-              if (typeof value === 'string') return value.trim() === ''; // String fields must not be empty
-              if (typeof value === 'number') return isNaN(value); // Number fields must be valid numbers
-              return value === undefined || value === null; // Other fields must not be undefined or null
+              if (field === 'collect') return typeof value !== 'boolean';
+              if (typeof value === 'string') return value.trim() === '';
+              if (typeof value === 'number') return isNaN(value);
+              return value === undefined || value === null;
             });
             
             if (missingFields.length > 0) {
@@ -266,19 +261,19 @@ export default function SettingsPage() {
               throw new Error(`Proyecto '${currentProjTyped.projectNumber}': Fecha de inicio inválida. ${e.message}. Valor: ${currentProjTyped.date}`);
             }
             
-            let projectEndDate: Date | undefined = undefined;
-            if (currentProjTyped.endDate) {
-              try {
-                projectEndDate = new Date(currentProjTyped.endDate as string);
-                if (isNaN(projectEndDate.getTime())) {
-                   console.warn(`Proyecto '${currentProjTyped.projectNumber}': Fecha de fin inválida, se omitirá. Valor:`, currentProjTyped.endDate);
-                   projectEndDate = undefined;
-                }
-              } catch (e) {
-                console.warn(`Proyecto '${currentProjTyped.projectNumber}': Error al parsear fecha de fin, se omitirá. Valor:`, currentProjTyped.endDate);
-                projectEndDate = undefined;
-              }
-            }
+            // let projectEndDate: Date | undefined = undefined; // REMOVED
+            // if (currentProjTyped.endDate) {
+            //   try {
+            //     projectEndDate = new Date(currentProjTyped.endDate as string);
+            //     if (isNaN(projectEndDate.getTime())) {
+            //        console.warn(`Proyecto '${currentProjTyped.projectNumber}': Fecha de fin inválida, se omitirá. Valor:`, currentProjTyped.endDate);
+            //        projectEndDate = undefined;
+            //     }
+            //   } catch (e) {
+            //     console.warn(`Proyecto '${currentProjTyped.projectNumber}': Error al parsear fecha de fin, se omitirá. Valor:`, currentProjTyped.endDate);
+            //     projectEndDate = undefined;
+            //   }
+            // }
 
             let projectCreatedAt: Date | undefined = undefined;
             if (currentProjTyped.createdAt) {
@@ -306,7 +301,7 @@ export default function SettingsPage() {
               
               description: currentProjTyped.description ? String(currentProjTyped.description) : undefined,
               glosa: currentProjTyped.glosa ? String(currentProjTyped.glosa) : undefined,
-              endDate: projectEndDate,
+              // endDate: projectEndDate, // REMOVED
               createdAt: projectCreatedAt, 
               phone: currentProjTyped.phone ? String(currentProjTyped.phone) : undefined,
               address: currentProjTyped.address ? String(currentProjTyped.address) : undefined,
@@ -322,7 +317,6 @@ export default function SettingsPage() {
             
             return await addProject(projectDataPayload);
         } catch (itemError: any) {
-            // This catches errors from validation or from addProject service call
             throw new Error(itemError.message || `Error procesando proyecto: ${JSON.stringify(proj)}`);
         }
       });
@@ -505,7 +499,7 @@ export default function SettingsPage() {
                     </Button>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    JSON array. Requeridos: `projectNumber`, `clientId`, `date` (YYYY-MM-DD), `subtotal`, `taxRate`, `status`, `collect`. Opc: `id`, `description`, `glosa`, `endDate`, `createdAt`, `phone`, `address`, `commune`, `region`, `windowsCount`, `squareMeters`, `uninstall`, `uninstallTypes` (array de strings), `uninstallOther`, `isHidden`.
+                    JSON array. Requeridos: `projectNumber`, `clientId`, `date` (YYYY-MM-DD), `subtotal`, `taxRate`, `status`, `collect`. Opc: `id`, `description`, `glosa`, `createdAt`, `phone`, `address`, `commune`, `region`, `windowsCount`, `squareMeters`, `uninstall`, `uninstallTypes` (array de strings), `uninstallOther`, `isHidden`.
                   </p>
                    <FileDndInput
                     id="import-projects-dnd"
@@ -569,4 +563,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
