@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,8 +9,8 @@ body {
 
 @layer base {
   :root {
-    --background: 0 0% 100%; /* bg-white */
-    --foreground: 240 10% 3.9%; /* text-gray-900 */
+    --background: 0 0% 100%; /* bg-white (Fondo principal Light) */
+    --foreground: 240 10% 3.9%; /* text-gray-900 (Texto principal Light) */
 
     --card: 0 0% 100%; /* bg-white */
     --card-foreground: 240 10% 3.9%; /* text-gray-900 */
@@ -17,20 +18,20 @@ body {
     --popover: 0 0% 100%; /* bg-white */
     --popover-foreground: 240 10% 3.9%; /* text-gray-900 */
 
-    --primary: 221.2 83.2% 53.3%; /* bg-blue-500 */
-    --primary-foreground: 0 0% 100%; /* White text for contrast */
+    --primary: 221.2 83.2% 53.3%; /* bg-blue-500 (Primario Light) */
+    --primary-foreground: 0 0% 100%; /* text-white */
 
-    --secondary: 240 5.9% 90%; /* bg-gray-100 (user's "fondo secundario") */
-    --secondary-foreground: 240 5.1% 31.8%; /* gray-700 for contrast on gray-100 */
+    --secondary: 240 5.9% 90%; /* bg-gray-100 (Fondo secundario Light) */
+    --secondary-foreground: 240 5.1% 31.8%; /* text-gray-700 */
     
-    --muted: 240 5.9% 90%; /* bg-gray-100 (user's "fondo secundario") */
-    --muted-foreground: 240 4.8% 46.1%; /* text-gray-500 (user's "texto secundario") */
+    --muted: 240 5.9% 90%; /* bg-gray-100 */
+    --muted-foreground: 240 4.8% 46.1%; /* text-gray-500 (Texto secundario Light) */
 
-    --accent: 262.1 83.3% 57.8%; /* bg-purple-600 (user's "Secundario") */
-    --accent-foreground: 0 0% 100%; /* White text for contrast */
+    --accent: 262.1 83.3% 57.8%; /* bg-purple-600 (Secundario/Acento Light) */
+    --accent-foreground: 0 0% 100%; /* text-white */
 
-    --destructive: 0 84.2% 60.2%; /* bg-red-500 (user's "Error") */
-    --destructive-foreground: 0 0% 100%; /* White text for contrast */
+    --destructive: 0 84.2% 60.2%; /* bg-red-500 (Error Light) */
+    --destructive-foreground: 0 0% 100%; /* text-white */
 
     --border: 240 5.9% 87.5%; /* Derived from gray-100/gray-200 */
     --input: 240 5.9% 87.5%; /* Derived from gray-100/gray-200 */
@@ -46,44 +47,44 @@ body {
     --chart-5: 27 87% 67%;
 
     /* Sidebar specific colors - Light Mode */
-    --sidebar-background: 240 5.9% 96%; /* Lighter than gray-100, almost white */
-    --sidebar-foreground: 240 10% 3.9%; /* gray-900 */
-    --sidebar-primary: 221.2 83.2% 50.3%; /* Slightly darker blue-500 */
+    --sidebar-background: 240 5.9% 96%; 
+    --sidebar-foreground: 240 10% 3.9%; 
+    --sidebar-primary: 221.2 83.2% 50.3%; 
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 262.1 83.3% 54.8%; /* Slightly darker purple-600 */
+    --sidebar-accent: 262.1 83.3% 54.8%; 
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 240 5.9% 90%; /* gray-200 */
-    --sidebar-ring: 221.2 83.2% 53.3%; /* primary blue */
+    --sidebar-border: 240 5.9% 90%; 
+    --sidebar-ring: 221.2 83.2% 53.3%; 
   }
 
   .dark {
-    --background: 240 6% 10%; /* dark:bg-gray-800 */
-    --foreground: 0 0% 98%; /* dark:text-white (using near-white) */
+    --background: 240 6% 10%; /* dark:bg-gray-800 (Fondo principal Dark) */
+    --foreground: 0 0% 98%; /* dark:text-white (Texto principal Dark) */
 
-    --card: 240 5.1% 19%; /* dark:bg-gray-700 (user's "fondo secundario" dark) */
-    --card-foreground: 0 0% 98%; /* near white */
+    --card: 240 5.1% 19%; /* dark:bg-gray-700 (Fondo secundario Dark) */
+    --card-foreground: 0 0% 98%; /* dark:text-white */
 
-    --popover: 240 6% 10%; /* dark:bg-gray-800 (same as background) */
-    --popover-foreground: 0 0% 98%; /* near white */
+    --popover: 240 6% 10%; /* dark:bg-gray-800 */
+    --popover-foreground: 0 0% 98%; /* dark:text-white */
 
-    --primary: 217.2 91.2% 59.8%; /* dark:bg-blue-400 */
-    --primary-foreground: 222.2 47.4% 11.2%; /* Dark text for blue-400 */
+    --primary: 217.2 91.2% 59.8%; /* dark:bg-blue-400 (Primario Dark) */
+    --primary-foreground: 0 0% 98%; /* dark:text-white (CAMBIADO) */
 
-    --secondary: 240 5.1% 19%; /* dark:bg-gray-700 (user's "fondo secundario" dark) */
-    --secondary-foreground: 0 0% 98%; /* near white */
+    --secondary: 240 5.1% 19%; /* dark:bg-gray-700 */
+    --secondary-foreground: 0 0% 98%; /* dark:text-white */
 
     --muted: 240 5.1% 19%; /* dark:bg-gray-700 */
-    --muted-foreground: 240 3.7% 65.9%; /* dark:text-gray-400 */
+    --muted-foreground: 240 3.7% 65.9%; /* dark:text-gray-400 (Texto secundario Dark) */
 
-    --accent: 259.1 91.1% 65.3%; /* dark:bg-purple-400 (user's "Secundario" dark) */
-    --accent-foreground: 0 0% 98%; /* near white */
+    --accent: 259.1 91.1% 65.3%; /* dark:bg-purple-400 (Secundario/Acento Dark) */
+    --accent-foreground: 0 0% 98%; /* dark:text-white */
 
-    --destructive: 0 92.9% 65.1%; /* dark:bg-red-400 (user's "Error" dark) */
-    --destructive-foreground: 0 0% 98%; /* near white */
+    --destructive: 0 92.9% 65.1%; /* dark:bg-red-400 (Error Dark) */
+    --destructive-foreground: 0 0% 98%; /* dark:text-white */
 
-    --border: 240 4.4% 26.1%; /* gray-600, for visibility against gray-700 cards */
-    --input: 240 4.4% 26.1%; /* gray-600 */
-    --ring: 217.2 91.2% 59.8%; /* Primary blue dark for focus rings */
+    --border: 240 4.4% 26.1%; 
+    --input: 240 4.4% 26.1%; 
+    --ring: 217.2 91.2% 59.8%; 
 
     /* Chart colors for dark theme */
     --chart-1: 220 70% 50%;
@@ -93,13 +94,13 @@ body {
     --chart-5: 340 75% 55%;
 
     /* Sidebar specific colors for dark theme */
-    --sidebar-background: 240 6% 12%; /* Slightly darker than gray-800 */
+    --sidebar-background: 240 6% 12%; 
     --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 217.2 91.2% 56.8%; /* Slightly darker blue-400 */
-    --sidebar-primary-foreground: 222.2 47.4% 11.2%;
-    --sidebar-accent: 259.1 91.1% 62.3%; /* Slightly darker purple-400 */
+    --sidebar-primary: 217.2 91.2% 56.8%; 
+    --sidebar-primary-foreground: 0 0% 98%; /* Ajustado para consistencia si es necesario */
+    --sidebar-accent: 259.1 91.1% 62.3%; 
     --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 240 5.1% 22%; /* Between gray-700 and gray-600 */
+    --sidebar-border: 240 5.1% 22%; 
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
