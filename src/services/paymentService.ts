@@ -1,3 +1,4 @@
+
 // src/services/paymentService.ts
 import {
   collection,
@@ -28,6 +29,13 @@ const paymentFromDoc = (docSnapshot: any): Payment => {
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : undefined,
     updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : undefined,
   } as Payment;
+};
+
+export const getAllPayments = async (): Promise<Payment[]> => {
+  const paymentsCollectionRef = collection(db, PAYMENTS_COLLECTION);
+  const q = query(paymentsCollectionRef, orderBy('date', 'desc')); // Order by payment date
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(paymentFromDoc);
 };
 
 export const getPaymentsForProject = async (projectId: string): Promise<Payment[]> => {

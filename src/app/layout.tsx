@@ -6,7 +6,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Briefcase, CalendarDays, Settings, Users, Loader2 } from 'lucide-react'; // Added Loader2
+import { Briefcase, CalendarDays, Settings, Users, Loader2, DollarSign } from 'lucide-react'; // Added DollarSign
 import { useState, useEffect } from 'react';
 import { ThemeProvider } from "next-themes";
 
@@ -50,8 +50,6 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const pathname = usePathname();
-  // queryClient instance should be stable across re-renders.
-  // It's created once when the RootLayout mounts for the first time.
   const [queryClient] = useState(() => new QueryClient());
   const [isMounted, setIsMounted] = useState(false);
 
@@ -60,8 +58,6 @@ export default function RootLayout({
   }, []);
 
   if (!isMounted) {
-    // Render a loader or null on the server and initial client pass
-    // to prevent rendering children that depend on client-side contexts/hooks too early.
     return (
       <html lang="es" suppressHydrationWarning>
         <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
@@ -74,7 +70,6 @@ export default function RootLayout({
     );
   }
 
-  // Once mounted, render the full application structure with all providers
   return (
     <html lang="es" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
@@ -85,7 +80,7 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <SidebarProvider> {/* SidebarProvider might use theme context, so keep inside ThemeProvider */}
+            <SidebarProvider>
               <Sidebar collapsible="icon">
                 <SidebarHeader className="p-4">
                   <Link href="/" className="flex items-center gap-2" title="CalReact Home">
@@ -118,6 +113,18 @@ export default function RootLayout({
                         <Link href="/">
                           <CalendarDays />
                           <span>Calendario</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                     <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={pathname === '/payments'}
+                        tooltip={{children: "Pagos", side:"right"}}
+                      >
+                        <Link href="/payments">
+                          <DollarSign />
+                          <span>Pagos</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
