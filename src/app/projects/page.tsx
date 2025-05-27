@@ -218,7 +218,7 @@ export default function ProjectsPage() {
                         disabled={isLoading || filteredProjects.length === 0}
                      />
                   </TableHead>
-                  <TableHead>Nº Proyecto / Cliente / Glosa</TableHead>
+                  <TableHead>Proyecto</TableHead>
                   <TableHead>F. Inicio</TableHead>
                   <TableHead className="text-right">V. Total</TableHead>
                   <TableHead>Estado</TableHead>
