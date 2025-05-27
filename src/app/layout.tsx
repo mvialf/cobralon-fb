@@ -61,14 +61,14 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-      {isClient ? (
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={queryClient}> {/* QueryClientProvider now wraps everything else client-side */}
+        {isClient ? (
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
             <SidebarProvider>
               <Sidebar collapsible="icon">
                 <SidebarHeader className="p-4">
@@ -139,22 +139,30 @@ export default function RootLayout({
               </Sidebar>
               
               <SidebarInset>
-                {children}
+                {children} {/* {children} is rendered here, inside all providers */}
               </SidebarInset>
               
-              <Toaster />
             </SidebarProvider>
-          </QueryClientProvider>
-        </ThemeProvider>
-         ) : (
-          // Render a basic structure or loader during server render / pre-hydration
-          // This helps avoid hydration warnings with next-themes
-          <div className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-            {children}
-             <Toaster />
+          </ThemeProvider>
+        ) : (
+          // Fallback for when isClient is false (server render, and initial client render before useEffect)
+          // {children} is still inside QueryClientProvider.
+          // ThemeProvider and SidebarProvider are not active here.
+          // This minimal wrapper ensures children have a basic layout context.
+          // A more sophisticated skeleton UI could be rendered here if needed.
+          <div className="flex flex-col min-h-screen">
+            <div className="flex flex-1">
+                <main className="flex-1 p-4"> {/* Mimicking SidebarInset structure for children */}
+                    {children}
+                </main>
+            </div>
           </div>
         )}
+        <Toaster /> {/* Toaster should be available regardless of theme or sidebar state */}
+      </QueryClientProvider>
       </body>
     </html>
   );
 }
+
+    
