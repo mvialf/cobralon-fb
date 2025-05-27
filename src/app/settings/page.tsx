@@ -8,9 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+// import { Input } from '@/components/ui/input'; // Replaced by FileDndInput for file selection
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { ChangeEvent } from 'react';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { addClient, type ClientImportData } from '@/services/clientService';
@@ -18,6 +17,7 @@ import { addProject, type ProjectImportData } from '@/services/projectService';
 import type { ProjectStatus } from '@/types/project';
 import { Loader2 } from 'lucide-react';
 import { useTheme } from "next-themes";
+import { FileDndInput } from '@/components/ui/file-dnd-input'; // Import the new component
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -32,22 +32,12 @@ export default function SettingsPage() {
     setMounted(true);
   }, []);
 
-  const handleClientFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setClientFile(file);
-    } else {
-      setClientFile(null);
-    }
+  const handleClientFileSelected = (file: File | null) => {
+    setClientFile(file);
   };
 
-  const handleProjectFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setProjectFile(file);
-    } else {
-      setProjectFile(null);
-    }
+  const handleProjectFileSelected = (file: File | null) => {
+    setProjectFile(file);
   };
 
   const handleImportClients = async () => {
@@ -67,8 +57,20 @@ export default function SettingsPage() {
       if (!Array.isArray(rawClientsToImport)) {
         throw new Error("El archivo JSON de clientes debe contener un array.");
       }
+      
+      const validClientItems = rawClientsToImport.filter(item => {
+        if (typeof item !== 'object' || item === null || Object.keys(item).length === 0) {
+            const msg = `Item omitido: no es un objeto de cliente válido o está vacío. Item: ${JSON.stringify(item)}`;
+            console.warn(msg); // Log for debugging
+            errorMessages.push(msg);
+            errorCount++;
+            return false;
+        }
+        return true;
+      });
 
-      const importPromises = rawClientsToImport.map(async (item) => {
+
+      const importPromises = validClientItems.map(async (item) => {
         if (!item || typeof item.name !== 'string' || item.name.trim() === '') {
           const msg = `Cliente omitido: falta 'name' o es inválido. ID: ${item?.id || 'N/A'}`;
           throw new Error(msg);
@@ -143,9 +145,7 @@ export default function SettingsPage() {
       });
     } finally {
       setIsImportingClients(false);
-      setClientFile(null);
-      const clientInput = document.getElementById('import-clients') as HTMLInputElement;
-      if (clientInput) clientInput.value = '';
+      setClientFile(null); // Reset file state
     }
   };
 
@@ -179,19 +179,18 @@ export default function SettingsPage() {
       });
 
       const importPromises = validProjectItems.map(async (proj) => {
-        const currentProjTyped = proj as ProjectImportData;
+        const currentProjTyped = proj as ProjectImportData; // Cast to ProjectImportData
         const requiredFields: (keyof Omit<ProjectImportData, 'id' | 'createdAt' | 'endDate' | 'description' | 'glosa' | 'phone' | 'address' | 'commune' | 'region' | 'windowsCount' | 'squareMeters' | 'uninstall' | 'uninstallTypes' | 'uninstallOther' | 'isHidden'>)[] = ['projectNumber', 'clientId', 'date', 'subtotal', 'taxRate', 'status', 'collect'];
         
         const missingFields = requiredFields.filter(field => {
           const value = currentProjTyped[field as keyof ProjectImportData];
-          if (field === 'collect') return typeof value !== 'boolean'; // collect must be boolean
+          if (field === 'collect') return typeof value !== 'boolean';
           if (typeof value === 'string') return value.trim() === '';
           return value === undefined || value === null;
         });
         
         if (missingFields.length > 0) {
-          const msg = `Proyecto '${currentProjTyped.projectNumber || 'Desconocido'}' omitido: faltan campos obligatorios: ${missingFields.join(', ')}.`;
-           throw new Error(msg);
+           throw new Error(`Proyecto '${currentProjTyped.projectNumber || 'Desconocido'}' omitido: faltan campos obligatorios: ${missingFields.join(', ')}.`);
         }
 
         let projectDate: Date;
@@ -297,9 +296,7 @@ export default function SettingsPage() {
       });
     } finally {
       setIsImportingProjects(false);
-      setProjectFile(null);
-      const projectInput = document.getElementById('import-projects') as HTMLInputElement;
-      if (projectInput) projectInput.value = '';
+      setProjectFile(null); // Reset file state
     }
   };
 
@@ -408,45 +405,41 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-3 p-4 border rounded-lg">
-                  <Label htmlFor="import-clients" className="text-base font-semibold">Importar Clientes (JSON)</Label>
+                  <Label htmlFor="import-clients-dnd" className="text-base font-semibold">Importar Clientes (JSON)</Label>
                   <p className="text-sm text-muted-foreground">
-                    Selecciona un archivo JSON con un array de clientes. Campos: `name` (string, req), `id` (string, opc), `phone` (string|null, opc), `email` (string|null, opc), `createdAt` (string ISO 8601 o YYYY-MM-DD, opc).
+                    Arrastra un archivo JSON o haz clic para seleccionar. Campos: `name` (string, req), `id` (string, opc), `phone` (string|null, opc), `email` (string|null, opc), `createdAt` (string ISO 8601 o YYYY-MM-DD, opc).
                   </p>
-                  <div className="flex flex-col sm:flex-row items-center gap-3">
-                    <Input
-                      id="import-clients"
-                      type="file"
-                      accept=".json"
-                      onChange={handleClientFileChange}
-                      className="flex-grow"
-                      disabled={isImportingClients}
-                    />
-                    <Button onClick={handleImportClients} className="w-full sm:w-auto" disabled={!clientFile || isImportingClients}>
-                      {isImportingClients ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                      Importar Clientes
-                    </Button>
-                  </div>
+                  <FileDndInput
+                    id="import-clients-dnd"
+                    accept=".json"
+                    onFileSelected={handleClientFileSelected}
+                    disabled={isImportingClients}
+                    label={clientFile ? `Archivo seleccionado: ${clientFile.name}` : "Arrastra y suelta tu JSON aquí, o haz clic"}
+                    maxSize={5 * 1024 * 1024} // 5MB limit
+                  />
+                  <Button onClick={handleImportClients} className="w-full sm:w-auto mt-2" disabled={!clientFile || isImportingClients}>
+                    {isImportingClients ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Importar Clientes
+                  </Button>
                 </div>
 
                 <div className="space-y-3 p-4 border rounded-lg">
-                  <Label htmlFor="import-projects" className="text-base font-semibold">Importar Proyectos (JSON)</Label>
+                  <Label htmlFor="import-projects-dnd" className="text-base font-semibold">Importar Proyectos (JSON)</Label>
                   <p className="text-sm text-muted-foreground">
                     JSON array. Requeridos: `projectNumber`, `clientId`, `date` (YYYY-MM-DD), `subtotal`, `taxRate`, `status`, `collect`. Opc: `id`, `description`, `glosa`, `endDate`, `createdAt`, `phone`, `address`, `commune`, `region`, `windowsCount`, `squareMeters`, `uninstall`, `uninstallTypes` (array de strings), `uninstallOther`, `isHidden`.
                   </p>
-                  <div className="flex flex-col sm:flex-row items-center gap-3">
-                    <Input
-                      id="import-projects"
-                      type="file"
-                      accept=".json"
-                      onChange={handleProjectFileChange}
-                      className="flex-grow"
-                      disabled={isImportingProjects}
-                    />
-                    <Button onClick={handleImportProjects} className="w-full sm:w-auto" disabled={!projectFile || isImportingProjects}>
-                      {isImportingProjects ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                      Importar Proyectos
-                    </Button>
-                  </div>
+                   <FileDndInput
+                    id="import-projects-dnd"
+                    accept=".json"
+                    onFileSelected={handleProjectFileSelected}
+                    disabled={isImportingProjects}
+                    label={projectFile ? `Archivo seleccionado: ${projectFile.name}` : "Arrastra y suelta tu JSON aquí, o haz clic"}
+                    maxSize={10 * 1024 * 1024} // 10MB limit
+                  />
+                  <Button onClick={handleImportProjects} className="w-full sm:w-auto mt-2" disabled={!projectFile || isImportingProjects}>
+                    {isImportingProjects ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Importar Proyectos
+                  </Button>
                 </div>
               </CardContent>
             </Card>
