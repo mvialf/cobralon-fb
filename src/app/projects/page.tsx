@@ -3,6 +3,7 @@
 "use client";
 import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation'; // Import useRouter
 import { useQuery, useMutation, useQueryClient as useQueryClientHook } from '@tanstack/react-query';
 import type { ProjectType } from '@/types/project';
 import type { Client } from '@/types/client';
@@ -43,7 +44,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { GanttChartSquare, DollarSign, FileText, SquarePen, Trash2, PlusCircle, Briefcase, Loader2, Search } from 'lucide-react';
-import ProjectModal from '@/components/project-modal';
+// ProjectModal ya no se usa para edición aquí, se navegará a una página
+// import ProjectModal from '@/components/project-modal'; 
 import { useToast } from '@/hooks/use-toast';
 
 // Helper to format currency (Chilean Pesos example)
@@ -60,8 +62,8 @@ const ProjectRowSkeleton = () => (
     <TableCell><div className="h-5 w-24 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
-    <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell> {/* Pagado (Switch) */}
-    <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell> {/* Abonos */}
+    <TableCell className="text-center"><div className="h-6 w-10 bg-muted rounded-full inline-block animate-pulse"></div></TableCell>
+    <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell className="text-right space-x-2">
       <div className="h-8 w-8 bg-muted rounded-full inline-block animate-pulse"></div>
     </TableCell>
@@ -71,10 +73,9 @@ const ProjectRowSkeleton = () => (
 export default function ProjectsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClientHook();
+  const router = useRouter(); // Initialize router
 
   const [filterText, setFilterText] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<ProjectType | undefined>(undefined);
   const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
   const [projectToDelete, setProjectToDelete] = useState<ProjectType | null>(null);
   const [isDeleteProjectDialogOpen, setIsDeleteProjectDialogOpen] = useState(false);
@@ -100,11 +101,10 @@ export default function ProjectsPage() {
       updateProject(variables.projectId, variables.projectData),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
-      const updatedProject = projects.find(p => p.id === variables.projectId);
+      // Toast for 'isPaid' toggle is handled in handleToggleIsPaid directly
       if (!variables.projectData.hasOwnProperty('isPaid')) {
-           toast({ title: "Proyecto Actualizado", description: `"${updatedProject?.projectNumber || 'El proyecto'}" ha sido actualizado.` });
+           toast({ title: "Proyecto Actualizado", description: `El proyecto ha sido actualizado.` });
       }
-      handleCloseModal();
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: `No se pudo actualizar el proyecto: ${err.message}`, variant: "destructive" });
@@ -131,16 +131,6 @@ export default function ProjectsPage() {
     },
   });
 
-  const handleOpenModal = (project?: ProjectType) => {
-    setSelectedProject(project);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setSelectedProject(undefined);
-  };
-
   const handleDeleteProjectInitiate = (project: ProjectType) => {
     setProjectToDelete(project);
     setIsDeleteProjectDialogOpen(true);
@@ -152,11 +142,8 @@ export default function ProjectsPage() {
     }
   };
 
-  const handleSaveProjectFromModal = (savedProject: ProjectType) => {
-    if (savedProject.id) {
-      const { id, ...projectData } = savedProject;
-      updateProjectMutation.mutate({ projectId: id, projectData });
-    }
+  const handleEditProject = (projectId: string) => {
+    router.push(`/projects/${projectId}/edit`);
   };
 
   const handleToggleIsPaid = async (projectId: string, newIsPaidState: boolean) => {
@@ -167,7 +154,16 @@ export default function ProjectsPage() {
         description: `El proyecto ha sido marcado como ${newIsPaidState ? 'pagado' : 'no pagado'}.`,
       });
     } catch (error) {
+      let message = "Error actualizando estado de pago.";
+      if (error instanceof Error) {
+        message = error.message;
+      }
       console.error("Error toggling isPaid status:", error);
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -253,7 +249,7 @@ export default function ProjectsPage() {
                         checked={isAllSelected}
                         onCheckedChange={(checked) => handleSelectAllRows(Boolean(checked))}
                         aria-label="Seleccionar todas las filas"
-                        data-indeterminate={isIndeterminate ? "true" : undefined}
+                        data-state={isIndeterminate ? "indeterminate" : (isAllSelected ? "checked" : "unchecked")}
                         disabled={isLoading || filteredProjects.length === 0}
                      />
                   </TableHead>
@@ -338,7 +334,7 @@ export default function ProjectsPage() {
                                 <span>Estado de cuenta</span>
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onSelect={() => handleOpenModal(project)} disabled={isMutating}>
+                              <DropdownMenuItem onSelect={() => handleEditProject(project.id)} disabled={isMutating}>
                                 <SquarePen className="mr-2 h-4 w-4" />
                                 <span>Editar proyecto</span>
                               </DropdownMenuItem>
@@ -366,15 +362,9 @@ export default function ProjectsPage() {
           </CardContent>
         </Card>
       </main>
-      {isModalOpen && (
-        <ProjectModal
-            isOpen={isModalOpen}
-            onClose={handleCloseModal}
-            onSave={handleSaveProjectFromModal}
-            projectData={selectedProject}
-            clients={clients}
-        />
-      )}
+      
+      {/* El ProjectModal ya no se usa aquí para editar, se navega a una página */}
+
       {projectToDelete && (
         <AlertDialog open={isDeleteProjectDialogOpen} onOpenChange={setIsDeleteProjectDialogOpen}>
           <AlertDialogContent>
