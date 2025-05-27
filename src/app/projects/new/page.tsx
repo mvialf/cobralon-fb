@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card'; 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Check, ChevronsUpDown, Loader2, Save, XCircle, PlusCircle } from 'lucide-react';
+import { Check, ChevronsUpDown, Loader2, Save, XCircle, PlusCircle, ArrowLeftToLine } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import ClientModal from '@/components/client-modal';
@@ -61,7 +61,6 @@ const projectSchema = z.object({
   region: z.string().optional().default('RM'),
   address: z.string().optional(),
   description: z.string().optional(),
-  // endDate: z.date().optional(), // REMOVED
   uninstall: z.boolean().default(false),
   uninstallTypes: z.array(z.string()).default([]),
   uninstallOther: z.string().optional(),
@@ -159,7 +158,6 @@ export default function NewProjectPage() {
       windowsCount: Number(data.windowsCount) || 0,
       squareMeters: Number(data.squareMeters) || 0,
       description: data.description || '',
-      // endDate: data.endDate, // REMOVED
       phone: data.phone || '',
       address: data.address || '',
       commune: data.commune || '',
@@ -193,11 +191,18 @@ export default function NewProjectPage() {
 
   return (
     <div className="flex flex-col h-full p-4 md:p-6 lg:p-8">
-      <header className="flex items-center gap-4 mb-6 md:mb-8">
-        <SidebarTrigger className="md:hidden" />
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-primary">Nuevo Proyecto</h1>
-          <p className="text-muted-foreground">Complete los detalles para registrar un nuevo proyecto.</p>
+      <header className="flex items-center justify-between gap-4 mb-6 md:mb-8">
+        <div className="flex items-center gap-4">
+          <SidebarTrigger className="md:hidden" />
+          <Link href="/projects" passHref legacyBehavior>
+            <Button variant="outline" size="icon" aria-label="Volver a Proyectos">
+              <ArrowLeftToLine className="h-5 w-5" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-primary">Nuevo Proyecto</h1>
+            <p className="text-muted-foreground">Complete los detalles para registrar un nuevo proyecto.</p>
+          </div>
         </div>
       </header>
 
@@ -427,3 +432,5 @@ export default function NewProjectPage() {
     </div>
   );
 }
+
+    
