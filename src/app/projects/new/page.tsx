@@ -30,6 +30,7 @@ import { Check, ChevronsUpDown, Loader2, Save, XCircle, PlusCircle, ArrowLeftToL
 import { cn } from '@/lib/utils';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import ClientModal from '@/components/client-modal';
+import { Switch } from '@/components/ui/switch';
 
 
 const projectSchema = z.object({
@@ -109,8 +110,10 @@ export default function NewProjectPage() {
       phone: '',
       commune: '',
       address: '',
+      description: '',
       uninstall: false,
       uninstallTypes: [],
+      uninstallOther: '',
       collect: false,
       isHidden: false,
     },
@@ -385,13 +388,38 @@ export default function NewProjectPage() {
               </div>
             </div>
 
-            {/* Fila 5: Dirección */}
-            <div className="flex flex-col md:flex-row gap-6">
-              <div className="md:w-1/2 space-y-2">
-                <Label htmlFor="address">Dirección (Proyecto)</Label>
-                <Textarea id="address" {...register("address")} placeholder="Dirección donde se realizará el proyecto" disabled={addClientMutation.isPending}/>
-                {errors.address && <p className="text-sm text-destructive">{errors.address.message}</p>}
-              </div>
+            {/* Fila 5: Dirección y Descripción Completa */}
+             <div className="flex flex-col md:flex-row gap-6">
+                <div className="md:w-1/2 space-y-2">
+                    <Label htmlFor="address">Dirección (Proyecto)</Label>
+                    <Textarea id="address" {...register("address")} placeholder="Dirección donde se realizará el proyecto" disabled={addClientMutation.isPending}/>
+                    {errors.address && <p className="text-sm text-destructive">{errors.address.message}</p>}
+                </div>
+                <div className="md:w-1/2 space-y-2">
+                    <Label htmlFor="description">Descripción Completa</Label>
+                    <Textarea id="description" {...register("description")} placeholder="Detalles completos del proyecto, observaciones, etc." disabled={addClientMutation.isPending} />
+                    {errors.description && <p className="text-sm text-destructive">{errors.description.message}</p>}
+                </div>
+            </div>
+            
+            {/* Fila 6: Switches (Uninstall) */}
+            <div className="space-y-4">
+                <div className="flex items-center space-x-2 pt-2">
+                    <Controller
+                        name="uninstall"
+                        control={control}
+                        render={({ field }) => (
+                            <Switch
+                                id="uninstall"
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                disabled={addClientMutation.isPending || isProjectSubmitting}
+                            />
+                        )}
+                    />
+                    <Label htmlFor="uninstall">Incluye desinstalación</Label>
+                </div>
+                {errors.uninstall && <p className="text-sm text-destructive">{errors.uninstall.message}</p>}
             </div>
             
             {/* Calculated Total (Display Only) */}
@@ -432,5 +460,3 @@ export default function NewProjectPage() {
     </div>
   );
 }
-
-    

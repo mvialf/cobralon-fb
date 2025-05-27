@@ -64,11 +64,11 @@ const projectSchema = z.object({
   address: z.string().optional(),
   description: z.string().optional(),
   uninstall: z.boolean().default(false),
-  uninstallTypes: z.array(z.string()).optional().default([]), // Made optional for edit form
+  uninstallTypes: z.array(z.string()).optional().default([]), 
   uninstallOther: z.string().optional(),
   collect: z.boolean().default(false),
   isHidden: z.boolean().default(false),
-  isPaid: z.boolean().default(false), // Added for direct editing if needed
+  isPaid: z.boolean().default(false), 
 });
 
 
@@ -76,14 +76,13 @@ type ProjectFormValues = z.infer<typeof projectSchema>;
 
 const formatDateForInput = (date: Date | string | undefined): string => {
   if (!date) return '';
-  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date; // Already in 'yyyy-MM-dd'
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date; 
   try {
-    // Try to parse if it's a full ISO string or a Date object
     const d = typeof date === 'string' ? parseISO(date) : date;
     return formatDateFns(d, 'yyyy-MM-dd');
   } catch (error) {
     console.warn("Error formatting date for input:", date, error);
-    return ''; // Fallback for invalid date
+    return ''; 
   }
 };
 
@@ -235,7 +234,7 @@ export default function EditProjectPage() {
     addClientMutation.mutate(newClientData as Omit<Client, 'id' | 'createdAt' | 'updatedAt'>);
   };
 
-  if (isLoadingProject || !projectData) { // Show skeleton if projectData is not yet available
+  if (isLoadingProject || !projectData) { 
     return (
         <div className="flex flex-col h-full p-4 md:p-6 lg:p-8">
             <header className="flex items-center justify-between gap-4 mb-6 md:mb-8">
@@ -483,6 +482,26 @@ export default function EditProjectPage() {
                     {errors.description && <p className="text-sm text-destructive">{errors.description.message}</p>}
                 </div>
             </div>
+
+            {/* Fila 6: Uninstall Switch */}
+            <div className="space-y-4">
+                 <div className="flex items-center space-x-2 pt-2">
+                    <Controller
+                        name="uninstall"
+                        control={control}
+                        render={({ field }) => (
+                            <Switch
+                                id="uninstall"
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                disabled={addClientMutation.isPending || isProjectSubmitting || updateProjectMutation.isPending}
+                            />
+                        )}
+                    />
+                    <Label htmlFor="uninstall">Incluye desinstalación</Label>
+                </div>
+                {errors.uninstall && <p className="text-sm text-destructive">{errors.uninstall.message}</p>}
+            </div>
             
             {/* Calculated Total (Display Only) */}
             <div className="md:w-1/3 space-y-2">
@@ -499,12 +518,9 @@ export default function EditProjectPage() {
                 />
             </div>
 
-            {/* Switches: Uninstall, Collect, IsHidden, IsPaid */}
-            <div className="space-y-4">
-                <div className="flex items-center space-x-2">
-                    <Controller name="uninstall" control={control} render={({ field }) => <Switch id="uninstall" checked={field.value || false} onCheckedChange={field.onChange} disabled={isProjectSubmitting || updateProjectMutation.isPending} />} />
-                    <Label htmlFor="uninstall">¿Requiere Desinstalación?</Label>
-                </div>
+            {/* Switches for additional options */}
+            <div className="space-y-4 pt-4">
+                {/* This is where the "Incluye desinstalación" switch was, now it's Fila 6 */}
                 {watch("uninstall") && (
                     <div className="pl-6 space-y-4">
                         <div>
@@ -522,24 +538,29 @@ export default function EditProjectPage() {
                                     />
                                 )}
                             />
+                             {errors.uninstallTypes && <p className="text-sm text-destructive">{(errors.uninstallTypes as any).message}</p>}
                         </div>
                         <div>
                             <Label htmlFor="uninstallOther">Otro Tipo de Desinstalación</Label>
                             <Input id="uninstallOther" {...register("uninstallOther")} placeholder="Especificar si es 'otro'" disabled={isProjectSubmitting || updateProjectMutation.isPending}/>
+                            {errors.uninstallOther && <p className="text-sm text-destructive">{errors.uninstallOther.message}</p>}
                         </div>
                     </div>
                 )}
                  <div className="flex items-center space-x-2">
                      <Controller name="collect" control={control} render={({ field }) => <Switch id="collect" checked={field.value} onCheckedChange={field.onChange} disabled={isProjectSubmitting || updateProjectMutation.isPending} />} />
                     <Label htmlFor="collect">¿Retirar Materiales? <span className="text-destructive">*</span></Label>
+                     {errors.collect && <p className="text-sm text-destructive">{errors.collect.message}</p>}
                 </div>
                  <div className="flex items-center space-x-2">
                      <Controller name="isHidden" control={control} render={({ field }) => <Switch id="isHidden" checked={field.value || false} onCheckedChange={field.onChange} disabled={isProjectSubmitting || updateProjectMutation.isPending} />} />
                     <Label htmlFor="isHidden">Ocultar Proyecto (Archivar)</Label>
+                     {errors.isHidden && <p className="text-sm text-destructive">{errors.isHidden.message}</p>}
                 </div>
                 <div className="flex items-center space-x-2">
                      <Controller name="isPaid" control={control} render={({ field }) => <Switch id="isPaid" checked={field.value || false} onCheckedChange={field.onChange} disabled={isProjectSubmitting || updateProjectMutation.isPending} />} />
                     <Label htmlFor="isPaid">Proyecto Pagado Completamente</Label>
+                     {errors.isPaid && <p className="text-sm text-destructive">{errors.isPaid.message}</p>}
                 </div>
             </div>
 
