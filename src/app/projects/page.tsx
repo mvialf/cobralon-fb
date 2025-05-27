@@ -24,6 +24,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch'; // Importar Switch
 import { Edit, Trash2, PlusCircle, Briefcase, Loader2, Search } from 'lucide-react';
 import ProjectModal from '@/components/project-modal'; // Se mantiene por si se usa para editar
 import { useToast } from '@/hooks/use-toast';
@@ -42,8 +43,8 @@ const ProjectRowSkeleton = () => (
     <TableCell><div className="h-5 w-24 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
-    <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
-    <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
+    <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell> {/* Pagado (Switch) */}
+    <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell> {/* Abonos */}
     <TableCell className="text-right space-x-2">
       <div className="h-8 w-8 bg-muted rounded-full inline-block animate-pulse"></div>
       <div className="h-8 w-8 bg-muted rounded-full inline-block animate-pulse"></div>
@@ -138,7 +139,7 @@ export default function ProjectsPage() {
     return (
       project.projectNumber.toLowerCase().includes(filterText.toLowerCase()) ||
       clientName.includes(filterText.toLowerCase()) ||
-      (project.glosa && project.glosa.toLowerCase().includes(filterText.toLowerCase())) || // Filtrar también por glosa
+      (project.glosa && project.glosa.toLowerCase().includes(filterText.toLowerCase())) ||
       (project.description && project.description.toLowerCase().includes(filterText.toLowerCase()))
     );
   }), [projects, clientMap, filterText]);
@@ -222,7 +223,7 @@ export default function ProjectsPage() {
                   <TableHead>F. Inicio</TableHead>
                   <TableHead className="text-right">V. Total</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Por Cobrar</TableHead>
+                  <TableHead className="text-center">Pagado</TableHead> {/* Cambiado de "Por Cobrar" */}
                   <TableHead className="text-right">Abonos</TableHead>
                   <TableHead className="text-right w-[120px]">Acciones</TableHead>
                 </TableRow>
@@ -238,6 +239,7 @@ export default function ProjectsPage() {
                     }
                     const abonos = (project.total ?? 0) - (project.balance ?? 0);
                     const isRowMutating = (updateProjectMutation.variables?.projectId === project.id || deleteProjectMutation.variables === project.id);
+                    const isFullyPaid = (project.balance ?? (project.total || 1)) <= 0; // Consider 0 or negative balance as paid
 
                     return (
                       <TableRow
@@ -271,7 +273,13 @@ export default function ProjectsPage() {
                             {project.status}
                           </span>
                         </TableCell>
-                        <TableCell className="text-right">{formatCurrency(project.balance)}</TableCell>
+                        <TableCell className="text-center"> {/* Celda para el Switch */}
+                          <Switch
+                            checked={isFullyPaid}
+                            disabled // El switch es de solo lectura
+                            aria-label={isFullyPaid ? "Proyecto pagado completamente" : "Proyecto con saldo pendiente"}
+                          />
+                        </TableCell>
                         <TableCell className="text-right">{formatCurrency(abonos)}</TableCell>
                         <TableCell className="text-right space-x-1">
                           <Button variant="outline" size="icon" onClick={() => handleOpenModal(project)} aria-label="Editar proyecto" disabled={isMutating}>
@@ -286,7 +294,7 @@ export default function ProjectsPage() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-10 text-muted-foreground"> {/* Ajustado colSpan */}
                       <Briefcase className="mx-auto h-12 w-12 mb-4" />
                       <p className="text-lg font-semibold">No hay proyectos registrados.</p>
                       <p className="text-sm">Empieza añadiendo tu primer proyecto.</p>
@@ -310,6 +318,3 @@ export default function ProjectsPage() {
     </div>
   );
 }
-
-
-    
