@@ -1,12 +1,12 @@
 
 // src/app/projects/page.tsx
 "use client";
-import { useState, useMemo } from 'react';
-import Link from 'next/link'; // Import Link
+import { useState, useMemo, useEffect } from 'react';
+import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient as useQueryClientHook } from '@tanstack/react-query';
 import type { ProjectType } from '@/types/project';
 import type { Client } from '@/types/client';
-import { getProjects, addProject, updateProject, deleteProject } from '@/services/projectService';
+import { getProjects, updateProject, deleteProject } from '@/services/projectService';
 import { getClients } from '@/services/clientService';
 import { format as formatDate } from '@/lib/calendar-utils';
 import { es } from 'date-fns/locale';
@@ -24,9 +24,26 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch'; 
-import { Edit, Trash2, PlusCircle, Briefcase, Loader2, Search } from 'lucide-react';
-import ProjectModal from '@/components/project-modal'; 
+import { Switch } from '@/components/ui/switch';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { GanttChartSquare, DollarSign, FileText, SquarePen, Trash2, PlusCircle, Briefcase, Loader2, Search } from 'lucide-react';
+import ProjectModal from '@/components/project-modal';
 import { useToast } from '@/hooks/use-toast';
 
 // Helper to format currency (Chilean Pesos example)
@@ -47,7 +64,6 @@ const ProjectRowSkeleton = () => (
     <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell> {/* Abonos */}
     <TableCell className="text-right space-x-2">
       <div className="h-8 w-8 bg-muted rounded-full inline-block animate-pulse"></div>
-      <div className="h-8 w-8 bg-muted rounded-full inline-block animate-pulse"></div>
     </TableCell>
   </TableRow>
 );
@@ -57,9 +73,11 @@ export default function ProjectsPage() {
   const queryClient = useQueryClientHook();
 
   const [filterText, setFilterText] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false); 
-  const [selectedProject, setSelectedProject] = useState<ProjectType | undefined>(undefined); 
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<ProjectType | undefined>(undefined);
   const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
+  const [projectToDelete, setProjectToDelete] = useState<ProjectType | null>(null);
+  const [isDeleteProjectDialogOpen, setIsDeleteProjectDialogOpen] = useState(false);
 
 
   const { data: projects = [], isLoading: isLoadingProjects, isError: isErrorProjects, error: errorProjects } = useQuery<ProjectType[], Error>({
@@ -83,11 +101,10 @@ export default function ProjectsPage() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       const updatedProject = projects.find(p => p.id === variables.projectId);
-      // Toast for general updates is good, specific toast for isPaid toggle can be handled by the toggle function
-      if (!variables.projectData.hasOwnProperty('isPaid')) { // Avoid double toast if only isPaid changed
+      if (!variables.projectData.hasOwnProperty('isPaid')) {
            toast({ title: "Proyecto Actualizado", description: `"${updatedProject?.projectNumber || 'El proyecto'}" ha sido actualizado.` });
       }
-      handleCloseModal(); 
+      handleCloseModal();
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: `No se pudo actualizar el proyecto: ${err.message}`, variant: "destructive" });
@@ -98,16 +115,19 @@ export default function ProjectsPage() {
     mutationFn: deleteProject,
     onSuccess: (_, projectId) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
-      const deletedProject = projects.find(p => p.id === projectId);
-      toast({ title: "Proyecto Eliminado", description: `"${deletedProject?.projectNumber || 'El proyecto'}" ha sido eliminado.`, variant: "destructive" });
+      toast({ title: "Proyecto Eliminado", description: `"${projectToDelete?.projectNumber || 'El proyecto'}" ha sido eliminado.`, variant: "destructive" });
       setSelectedRows(prev => {
         const newSelected = {...prev};
         delete newSelected[projectId];
         return newSelected;
       });
+      setProjectToDelete(null);
+      setIsDeleteProjectDialogOpen(false);
     },
     onError: (err: Error) => {
-      toast({ title: "Error", description: `No se pudo eliminar el proyecto: ${err.message}`, variant: "destructive" });
+      toast({ title: "Error al Eliminar", description: `No se pudo eliminar el proyecto: ${err.message}`, variant: "destructive" });
+      setProjectToDelete(null);
+      setIsDeleteProjectDialogOpen(false);
     },
   });
 
@@ -121,12 +141,18 @@ export default function ProjectsPage() {
     setSelectedProject(undefined);
   };
 
-  const handleDeleteProject = (projectId: string) => {
-    // TODO: Añadir confirmación (AlertDialog)
-    deleteProjectMutation.mutate(projectId);
+  const handleDeleteProjectInitiate = (project: ProjectType) => {
+    setProjectToDelete(project);
+    setIsDeleteProjectDialogOpen(true);
   };
 
-  const handleSaveProjectFromModal = (savedProject: ProjectType) => { 
+  const confirmDeleteProject = () => {
+    if (projectToDelete) {
+      deleteProjectMutation.mutate(projectToDelete.id);
+    }
+  };
+
+  const handleSaveProjectFromModal = (savedProject: ProjectType) => {
     if (savedProject.id) {
       const { id, ...projectData } = savedProject;
       updateProjectMutation.mutate({ projectId: id, projectData });
@@ -141,8 +167,6 @@ export default function ProjectsPage() {
         description: `El proyecto ha sido marcado como ${newIsPaidState ? 'pagado' : 'no pagado'}.`,
       });
     } catch (error) {
-      // Error is already handled by updateProjectMutation.onError
-      // but we can add specific logging here if needed.
       console.error("Error toggling isPaid status:", error);
     }
   };
@@ -239,7 +263,7 @@ export default function ProjectsPage() {
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-center">Pagado</TableHead>
                   <TableHead className="text-right">Abonos</TableHead>
-                  <TableHead className="text-right w-[120px]">Acciones</TableHead>
+                  <TableHead className="text-right w-[100px]">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -252,12 +276,14 @@ export default function ProjectsPage() {
                       clientDisplay += ` - ${project.glosa}`;
                     }
                     const abonos = (project.total ?? 0) - (project.balance ?? 0);
-                    const isRowMutating = (updateProjectMutation.variables?.projectId === project.id || deleteProjectMutation.variables === project.id);
+                    const isRowUpdating = updateProjectMutation.isPending && updateProjectMutation.variables?.projectId === project.id;
+                    const isRowDeleting = deleteProjectMutation.isPending && projectToDelete?.id === project.id;
+                    const isCurrentRowMutating = isRowUpdating || isRowDeleting;
                     
                     return (
                       <TableRow
                         key={project.id}
-                        className={isRowMutating ? 'opacity-50' : ''}
+                        className={isCurrentRowMutating ? 'opacity-50' : ''}
                         data-state={selectedRows[project.id] ? 'selected' : undefined}
                       >
                         <TableCell className="text-center">
@@ -290,18 +316,38 @@ export default function ProjectsPage() {
                           <Switch
                             checked={project.isPaid || false}
                             onCheckedChange={(newCheckedState) => handleToggleIsPaid(project.id, newCheckedState)}
-                            disabled={updateProjectMutation.isPending && updateProjectMutation.variables?.projectId === project.id && updateProjectMutation.variables.projectData.hasOwnProperty('isPaid')}
+                            disabled={isRowUpdating && updateProjectMutation.variables?.projectData.hasOwnProperty('isPaid')}
                             aria-label={project.isPaid ? "Proyecto marcado como pagado" : "Marcar proyecto como pagado"}
                           />
                         </TableCell>
                         <TableCell className="text-right">{formatCurrency(abonos)}</TableCell>
-                        <TableCell className="text-right space-x-1">
-                          <Button variant="outline" size="icon" onClick={() => handleOpenModal(project)} aria-label="Editar proyecto" disabled={isMutating}>
-                            {isMutating && updateProjectMutation.variables?.projectId === project.id && !updateProjectMutation.variables.projectData.hasOwnProperty('isPaid') ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
-                          </Button>
-                          <Button variant="destructive" size="icon" onClick={() => handleDeleteProject(project.id)} aria-label="Eliminar proyecto" disabled={isMutating}>
-                            {isRowMutating && deleteProjectMutation.variables === project.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                          </Button>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" disabled={isCurrentRowMutating} aria-label="Más acciones">
+                                {isCurrentRowMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <GanttChartSquare className="h-4 w-4" />}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onSelect={() => console.log("Registrar Pago para:", project.projectNumber)} disabled={isMutating}>
+                                <DollarSign className="mr-2 h-4 w-4" />
+                                <span>Registrar Pago</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => console.log("Estado de cuenta para:", project.projectNumber)} disabled={isMutating}>
+                                <FileText className="mr-2 h-4 w-4" />
+                                <span>Estado de cuenta</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onSelect={() => handleOpenModal(project)} disabled={isMutating}>
+                                <SquarePen className="mr-2 h-4 w-4" />
+                                <span>Editar proyecto</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => handleDeleteProjectInitiate(project)} disabled={isMutating} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                <span>Eliminar proyecto</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     );
@@ -320,7 +366,7 @@ export default function ProjectsPage() {
           </CardContent>
         </Card>
       </main>
-      {isModalOpen && ( 
+      {isModalOpen && (
         <ProjectModal
             isOpen={isModalOpen}
             onClose={handleCloseModal}
@@ -328,6 +374,30 @@ export default function ProjectsPage() {
             projectData={selectedProject}
             clients={clients}
         />
+      )}
+      {projectToDelete && (
+        <AlertDialog open={isDeleteProjectDialogOpen} onOpenChange={setIsDeleteProjectDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción no se puede deshacer. Esto eliminará permanentemente el proyecto "{projectToDelete.projectNumber}"
+                y todos sus pagos y registros de postventa asociados.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => { setProjectToDelete(null); setIsDeleteProjectDialogOpen(false); }}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDeleteProject}
+                disabled={deleteProjectMutation.isPending}
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                {deleteProjectMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Sí, eliminar proyecto
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </div>
   );
