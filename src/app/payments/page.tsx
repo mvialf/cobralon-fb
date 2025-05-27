@@ -3,7 +3,7 @@
 "use client";
 
 import { useState, useMemo } from 'react';
-import { useQuery, useQueryClient as useQueryClientHook } from '@tanstack/react-query';
+import { useQuery, useQueryClient as useQueryClientHook, useMutation } from '@tanstack/react-query';
 import type { Payment } from '@/types/payment';
 import type { ProjectType } from '@/types/project';
 import type { Client } from '@/types/client';
@@ -52,7 +52,6 @@ const formatCurrency = (amount: number | undefined | null) => {
 const PaymentRowSkeleton = () => (
   <TableRow>
     <TableCell><div className="h-5 w-32 bg-muted rounded animate-pulse"></div></TableCell>
-    <TableCell><div className="h-5 w-24 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell><div className="h-5 w-24 bg-muted rounded animate-pulse"></div></TableCell>
@@ -62,12 +61,12 @@ const PaymentRowSkeleton = () => (
 
 interface EnrichedPayment extends Payment {
   clientName?: string;
-  projectNumber?: string;
+  // projectNumber?: string; // Removido
 }
 
 export default function PaymentsPage() {
   const { toast } = useToast();
-  const queryClientHook = useQueryClientHook();
+  const queryClient = useQueryClientHook();
 
   const [filterText, setFilterText] = useState('');
   // const [isModalOpen, setIsModalOpen] = useState(false);
@@ -103,7 +102,7 @@ export default function PaymentsPage() {
       return {
         ...payment,
         clientName: clientName || 'Cliente no encontrado',
-        projectNumber: project?.projectNumber || 'Proyecto Desconocido',
+        // projectNumber: project?.projectNumber || 'Proyecto Desconocido', // Removido
       };
     });
   }, [payments, projects, clients, isLoadingPayments, isLoadingProjects, isLoadingClients]);
@@ -111,24 +110,25 @@ export default function PaymentsPage() {
   const filteredPayments = useMemo(() => {
     return enrichedPayments.filter(payment =>
       payment.clientName?.toLowerCase().includes(filterText.toLowerCase()) ||
-      payment.projectNumber?.toLowerCase().includes(filterText.toLowerCase()) ||
+      // payment.projectNumber?.toLowerCase().includes(filterText.toLowerCase()) || // Removido del filtro
       payment.paymentType?.toLowerCase().includes(filterText.toLowerCase()) ||
       payment.paymentMethod?.toLowerCase().includes(filterText.toLowerCase())
     );
   }, [enrichedPayments, filterText]);
 
-  const deletePaymentMutation = useQuery({
-    // mutationFn: deletePayment, // This needs to be a mutation, not a query
-    // onSuccess: (_, paymentId) => {
-    //   queryClientHook.invalidateQueries({ queryKey: ['payments'] });
-    //   toast({ title: "Pago Eliminado", description: `El pago ha sido eliminado.`, variant: "destructive" });
-    //   setPaymentToDelete(null);
-    //   setIsDeleteDialogOpen(false);
-    // },
-    // onError: (err: Error) => {
-    //   toast({ title: "Error al Eliminar", description: `No se pudo eliminar el pago: ${err.message}`, variant: "destructive" });
-    // }
-    // Placeholder for mutation setup
+  const deletePaymentMutation = useMutation({
+    mutationFn: deletePayment,
+    onSuccess: (_, paymentId) => {
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      toast({ title: "Pago Eliminado", description: `El pago ha sido eliminado.`, variant: "destructive" });
+      setPaymentToDelete(null);
+      setIsDeleteDialogOpen(false);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error al Eliminar", description: `No se pudo eliminar el pago: ${err.message}`, variant: "destructive" });
+      setPaymentToDelete(null);
+      setIsDeleteDialogOpen(false);
+    }
   });
 
 
@@ -137,18 +137,9 @@ export default function PaymentsPage() {
     setIsDeleteDialogOpen(true);
   };
 
-  const confirmDeletePayment = async () => {
+  const confirmDeletePayment = () => {
     if (paymentToDelete) {
-      try {
-        await deletePayment(paymentToDelete.id); // Direct call for now
-        queryClientHook.invalidateQueries({ queryKey: ['payments'] });
-        toast({ title: "Pago Eliminado", description: `El pago ha sido eliminado.`, variant: "destructive" });
-      } catch (err: any) {
-        toast({ title: "Error al Eliminar", description: `No se pudo eliminar el pago: ${err.message}`, variant: "destructive" });
-      } finally {
-        setPaymentToDelete(null);
-        setIsDeleteDialogOpen(false);
-      }
+      deletePaymentMutation.mutate(paymentToDelete.id);
     }
   };
   
@@ -160,13 +151,16 @@ export default function PaymentsPage() {
 
 
   const isLoading = isLoadingPayments || isLoadingProjects || isLoadingClients;
-  // const isMutating = deletePaymentMutation.isPending; // Adapt when using useMutation
+  const isMutating = deletePaymentMutation.isPending;
 
   if (isErrorPayments) {
     return (
       <div className="flex flex-col h-full p-4 md:p-6 lg:p-8 items-center justify-center text-destructive">
         <h1 className="text-2xl font-bold mb-2">Error al cargar pagos</h1>
         <p>{errorPayments?.message || "Ha ocurrido un error desconocido."}</p>
+         <Button onClick={() => queryClient.refetchQueries({ queryKey: ['payments'] })} className="mt-4">
+          Intentar de Nuevo
+        </Button>
       </div>
     );
   }
@@ -192,7 +186,7 @@ export default function PaymentsPage() {
             <div className="relative w-full max-w-sm">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                placeholder="Filtrar por cliente, proyecto, tipo..."
+                placeholder="Filtrar por cliente, tipo..."
                 value={filterText}
                 onChange={(e) => setFilterText(e.target.value)}
                 className="pl-8"
@@ -205,10 +199,9 @@ export default function PaymentsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Cliente</TableHead>
-                  <TableHead>Nº Proyecto</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead>Fecha</TableHead>
-                  <TableHead>Tipo de Pago</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead className="text-right w-[100px]">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -217,25 +210,24 @@ export default function PaymentsPage() {
                   [...Array(5)].map((_, i) => <PaymentRowSkeleton key={i} />)
                 ) : filteredPayments.length > 0 ? (
                   filteredPayments.map((payment) => (
-                    <TableRow key={payment.id} className={/*isMutating && paymentToDelete?.id === payment.id ? 'opacity-50' :*/ ''}>
+                    <TableRow key={payment.id} className={isMutating && paymentToDelete?.id === payment.id ? 'opacity-50' : ''}>
                       <TableCell className="font-medium">{payment.clientName}</TableCell>
-                      <TableCell>{payment.projectNumber}</TableCell>
                       <TableCell className="text-right">{formatCurrency(payment.amount)}</TableCell>
                       <TableCell>{payment.date ? formatDate(payment.date, 'P', { locale: es }) : 'N/A'}</TableCell>
                       <TableCell>{payment.paymentType || 'N/A'}</TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" disabled={false /*isMutating*/ } aria-label="Más acciones">
-                              {false /*isMutating && paymentToDelete?.id === payment.id*/ ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
+                            <Button variant="ghost" size="icon" disabled={isMutating && paymentToDelete?.id === payment.id} aria-label="Más acciones">
+                              {isMutating && paymentToDelete?.id === payment.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => handleEditPayment(payment)} disabled={false /*isMutating*/}>
+                            <DropdownMenuItem onSelect={() => handleEditPayment(payment)} disabled={isMutating}>
                               <Edit className="mr-2 h-4 w-4" />
                               <span>Editar</span>
                             </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => handleDeletePaymentInitiate(payment)} disabled={false /*isMutating*/} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
+                            <DropdownMenuItem onSelect={() => handleDeletePaymentInitiate(payment)} disabled={isMutating} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
                               <Trash2 className="mr-2 h-4 w-4" />
                               <span>Eliminar</span>
                             </DropdownMenuItem>
@@ -246,7 +238,7 @@ export default function PaymentsPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
                       <DollarSign className="mx-auto h-12 w-12 mb-4" />
                       <p className="text-lg font-semibold">No hay pagos registrados.</p>
                       <p className="text-sm">Empieza añadiendo pagos a tus proyectos.</p>
@@ -265,17 +257,17 @@ export default function PaymentsPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
               <AlertDialogDescription>
-                Esta acción no se puede deshacer. Esto eliminará permanentemente el pago de {formatCurrency(paymentToDelete.amount)} para el proyecto {paymentToDelete.projectNumber}.
+                Esta acción no se puede deshacer. Esto eliminará permanentemente el pago de {formatCurrency(paymentToDelete.amount)} del cliente {paymentToDelete.clientName}.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel onClick={() => { setPaymentToDelete(null); setIsDeleteDialogOpen(false); }}>Cancelar</AlertDialogCancel>
               <AlertDialogAction
                 onClick={confirmDeletePayment}
-                disabled={false /*deletePaymentMutation.isPending*/}
+                disabled={deletePaymentMutation.isPending}
                 className="bg-destructive hover:bg-destructive/90"
               >
-                {false /*deletePaymentMutation.isPending*/ ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {deletePaymentMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Sí, eliminar pago
               </AlertDialogAction>
             </AlertDialogFooter>
