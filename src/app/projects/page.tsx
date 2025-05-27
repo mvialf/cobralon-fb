@@ -138,6 +138,7 @@ export default function ProjectsPage() {
     return (
       project.projectNumber.toLowerCase().includes(filterText.toLowerCase()) ||
       clientName.includes(filterText.toLowerCase()) ||
+      (project.glosa && project.glosa.toLowerCase().includes(filterText.toLowerCase())) || // Filtrar también por glosa
       (project.description && project.description.toLowerCase().includes(filterText.toLowerCase()))
     );
   }), [projects, clientMap, filterText]);
@@ -196,7 +197,7 @@ export default function ProjectsPage() {
             <div className="relative w-full max-w-sm">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Filtrar por Nº proyecto, cliente..."
+                placeholder="Filtrar por Nº proyecto, cliente, glosa..."
                 value={filterText}
                 onChange={(e) => setFilterText(e.target.value)}
                 className="pl-8"
@@ -217,7 +218,7 @@ export default function ProjectsPage() {
                         disabled={isLoading || filteredProjects.length === 0}
                      />
                   </TableHead>
-                  <TableHead>Nº Proyecto / Cliente</TableHead>
+                  <TableHead>Nº Proyecto / Cliente / Glosa</TableHead>
                   <TableHead>F. Inicio</TableHead>
                   <TableHead className="text-right">V. Total</TableHead>
                   <TableHead>Estado</TableHead>
@@ -231,7 +232,10 @@ export default function ProjectsPage() {
                   [...Array(5)].map((_, i) => <ProjectRowSkeleton key={i} />)
                 ) : filteredProjects.length > 0 ? (
                   filteredProjects.map((project) => {
-                    const clientName = clientMap.get(project.clientId) || 'Cliente no encontrado';
+                    let clientDisplay = clientMap.get(project.clientId) || 'Cliente no encontrado';
+                    if (project.glosa && project.glosa.trim() !== '') {
+                      clientDisplay += ` - ${project.glosa}`;
+                    }
                     const abonos = (project.total ?? 0) - (project.balance ?? 0);
                     const isRowMutating = (updateProjectMutation.variables?.projectId === project.id || deleteProjectMutation.variables === project.id);
 
@@ -251,18 +255,18 @@ export default function ProjectsPage() {
                         </TableCell>
                         <TableCell className="font-medium">
                           <div>{project.projectNumber}</div>
-                          <div className="text-xs text-muted-foreground">{clientName}</div>
+                          <div className="text-xs text-muted-foreground">{clientDisplay}</div>
                         </TableCell>
                         <TableCell>{project.date ? formatDate(project.date, 'P', { locale: es }) : 'N/A'}</TableCell>
                         <TableCell className="text-right">{formatCurrency(project.total)}</TableCell>
                         <TableCell>
                           <span className={`px-2 py-1 text-xs rounded-full ${
-                            project.status === 'completado' ? 'bg-green-100 text-green-700' :
-                            project.status === 'en progreso' ? 'bg-blue-100 text-blue-700' :
-                            project.status === 'cancelado' ? 'bg-red-100 text-red-700' :
-                            project.status === 'ingresado' ? 'bg-yellow-100 text-yellow-700' :
-                            project.status === 'pendiente aprobación' ? 'bg-purple-100 text-purple-700' :
-                            'bg-gray-100 text-gray-700'
+                            project.status === 'completado' ? 'bg-green-100 text-green-700 dark:bg-green-700/30 dark:text-green-300' :
+                            project.status === 'en progreso' ? 'bg-blue-100 text-blue-700 dark:bg-blue-700/30 dark:text-blue-300' :
+                            project.status === 'cancelado' ? 'bg-red-100 text-red-700 dark:bg-red-700/30 dark:text-red-300' :
+                            project.status === 'ingresado' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-700/30 dark:text-yellow-300' :
+                            project.status === 'pendiente aprobación' ? 'bg-purple-100 text-purple-700 dark:bg-purple-700/30 dark:text-purple-300' :
+                            'bg-gray-100 text-gray-700 dark:bg-gray-700/30 dark:text-gray-300'
                           }`}>
                             {project.status}
                           </span>
@@ -306,3 +310,6 @@ export default function ProjectsPage() {
     </div>
   );
 }
+
+
+    
