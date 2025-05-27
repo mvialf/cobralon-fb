@@ -57,7 +57,6 @@ const initialProjectState: Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt' | 
   squareMeters: 0,
   uninstall: false,
   uninstallTypes: [],
-  uninstallOther: '',
   glosa: '',
   isHidden: false,
   isPaid: false,
@@ -91,7 +90,6 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
         collect: projectData.collect ?? false,
         uninstall: projectData.uninstall ?? false,
         uninstallTypes: Array.isArray(projectData.uninstallTypes) ? projectData.uninstallTypes : [],
-        uninstallOther: projectData.uninstallOther || '',
         isHidden: projectData.isHidden ?? false,
         isPaid: projectData.isPaid ?? false,
       });
@@ -153,7 +151,6 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
       collect: project.collect ?? false,
       uninstall: project.uninstall ?? false,
       uninstallTypes: Array.isArray(project.uninstallTypes) ? project.uninstallTypes : [],
-      uninstallOther: project.uninstallOther || '',
       isHidden: project.isHidden ?? false,
       isPaid: project.isPaid ?? false,
     } as ProjectType; 
@@ -335,17 +332,6 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
                               </Command>
                             </PopoverContent>
                           </Popover>
-                    </div>
-                    <div>
-                        <Label htmlFor="uninstallOther-modal">Otro Tipo de Desinstalación</Label>
-                        <Input 
-                            id="uninstallOther-modal" 
-                            name="uninstallOther" 
-                            value={project.uninstallOther || ''} 
-                            onChange={handleChange} 
-                            placeholder="Especificar si es 'otro'" 
-                            className="mt-1"
-                        />
                     </div>
                 </div>
             )}

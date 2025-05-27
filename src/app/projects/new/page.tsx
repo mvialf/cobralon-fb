@@ -67,7 +67,6 @@ const projectSchema = z.object({
   description: z.string().optional(),
   uninstall: z.boolean().default(false),
   uninstallTypes: z.array(z.string()).optional().default([]),
-  uninstallOther: z.string().optional(),
   collect: z.boolean().default(false),
   isHidden: z.boolean().default(false),
 });
@@ -118,7 +117,6 @@ export default function NewProjectPage() {
       description: '',
       uninstall: false,
       uninstallTypes: [],
-      uninstallOther: '',
       collect: false,
       isHidden: false,
     },
@@ -172,7 +170,6 @@ export default function NewProjectPage() {
       region: data.region || 'RM',
       uninstall: data.uninstall || false,
       uninstallTypes: Array.isArray(data.uninstallTypes) ? data.uninstallTypes : [],
-      uninstallOther: data.uninstallOther || '',
       glosa: data.glosa || '',
       collect: data.collect || false,
       isHidden: data.isHidden || false,
@@ -489,17 +486,6 @@ export default function NewProjectPage() {
                         )}
                       />
                       {errors.uninstallTypes && <p className="text-sm text-destructive">{(errors.uninstallTypes as any).message}</p>}
-                    </div>
-                    <div>
-                      <Label htmlFor="uninstallOther">Otro Tipo de Desinstalación</Label>
-                      <Input 
-                        id="uninstallOther" 
-                        {...register("uninstallOther")} 
-                        placeholder="Especificar si es 'otro'" 
-                        disabled={isProjectSubmitting} 
-                        className="mt-1"
-                      />
-                      {errors.uninstallOther && <p className="text-sm text-destructive">{errors.uninstallOther.message}</p>}
                     </div>
                   </div>
                 )}
