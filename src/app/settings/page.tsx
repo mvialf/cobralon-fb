@@ -11,20 +11,26 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ChangeEvent } from 'react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { addClient, type ClientImportData } from '@/services/clientService';
 import { addProject, type ProjectImportData } from '@/services/projectService';
-// import type { ProjectStatus, ProjectClassification } from '@/types/project'; // ProjectClassification removed
 import type { ProjectStatus } from '@/types/project';
 import { Loader2 } from 'lucide-react';
+import { useTheme } from "next-themes";
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
   const [clientFile, setClientFile] = useState<File | null>(null);
   const [projectFile, setProjectFile] = useState<File | null>(null);
   const [isImportingClients, setIsImportingClients] = useState(false);
   const [isImportingProjects, setIsImportingProjects] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleClientFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -62,7 +68,7 @@ export default function SettingsPage() {
         throw new Error("El archivo JSON de clientes debe contener un array.");
       }
 
-      const importPromises = rawClientsToImport.map(item => {
+      const importPromises = rawClientsToImport.map(async (item) => {
         if (!item || typeof item.name !== 'string' || item.name.trim() === '') {
           const msg = `Cliente omitido: falta 'name' o es inválido. ID: ${item?.id || 'N/A'}`;
           throw new Error(msg);
@@ -71,7 +77,7 @@ export default function SettingsPage() {
         const clientPayload: ClientImportData = {
           name: item.name,
         };
-
+        
         if (item.id && typeof item.id === 'string' && item.id.trim() !== '') {
           clientPayload.id = item.id;
         }
@@ -96,9 +102,11 @@ export default function SettingsPage() {
           }
         }
         
-        return addClient(clientPayload).catch(err => { 
-          throw new Error(`Error al guardar cliente '${item.name || item.id || 'Desconocido'}': ${err.message}`);
-        });
+        try {
+          return await addClient(clientPayload);
+        } catch (serviceError: any) {
+          throw new Error(`Error al guardar cliente '${item.name || item.id || 'Desconocido'}': ${serviceError.message}`);
+        }
       });
 
       const results = await Promise.allSettled(importPromises);
@@ -141,7 +149,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleImportProjects = async () => {
+ const handleImportProjects = async () => {
     if (!projectFile) {
       toast({ title: "Error", description: "Por favor, selecciona un archivo de proyectos.", variant: "destructive" });
       return;
@@ -153,7 +161,7 @@ export default function SettingsPage() {
 
     try {
       const fileContent = await projectFile.text();
-      const projectsToImportJSON: any[] = JSON.parse(fileContent); 
+      const projectsToImportJSON: any[] = JSON.parse(fileContent);
 
       if (!Array.isArray(projectsToImportJSON)) {
         throw new Error("El archivo JSON de proyectos debe contener un array.");
@@ -162,9 +170,9 @@ export default function SettingsPage() {
       const validProjectItems = projectsToImportJSON.filter(item => {
         if (typeof item !== 'object' || item === null || Object.keys(item).length === 0) {
           const msg = `Item omitido: no es un objeto de proyecto válido o está vacío. Item: ${JSON.stringify(item)}`;
-          console.warn(msg); 
-          errorMessages.push(msg); 
-          errorCount++; 
+          console.warn(msg);
+          errorMessages.push(msg);
+          errorCount++;
           return false;
         }
         return true;
@@ -172,20 +180,18 @@ export default function SettingsPage() {
 
       const importPromises = validProjectItems.map(async (proj) => {
         const currentProjTyped = proj as ProjectImportData;
-
-        // Removed 'classification' from requiredFields
-        const requiredFields: (keyof Omit<ProjectImportData, 'classification'>)[] = ['projectNumber', 'clientId', 'date', 'subtotal', 'taxRate', 'status', 'collect'];
+        const requiredFields: (keyof Omit<ProjectImportData, 'id' | 'createdAt' | 'endDate' | 'description' | 'glosa' | 'phone' | 'address' | 'commune' | 'region' | 'windowsCount' | 'squareMeters' | 'uninstall' | 'uninstallTypes' | 'uninstallOther' | 'isHidden'>)[] = ['projectNumber', 'clientId', 'date', 'subtotal', 'taxRate', 'status', 'collect'];
         
         const missingFields = requiredFields.filter(field => {
           const value = currentProjTyped[field as keyof ProjectImportData];
+          if (field === 'collect') return typeof value !== 'boolean'; // collect must be boolean
           if (typeof value === 'string') return value.trim() === '';
-          if (typeof value === 'boolean') return false; // boolean 'false' is a valid value
           return value === undefined || value === null;
         });
         
         if (missingFields.length > 0) {
           const msg = `Proyecto '${currentProjTyped.projectNumber || 'Desconocido'}' omitido: faltan campos obligatorios: ${missingFields.join(', ')}.`;
-          throw new Error(msg); 
+           throw new Error(msg);
         }
 
         let projectDate: Date;
@@ -231,9 +237,8 @@ export default function SettingsPage() {
           date: projectDate,
           subtotal: Number(currentProjTyped.subtotal),
           taxRate: Number(currentProjTyped.taxRate),
-          status: currentProjTyped.status as ProjectStatus, 
-          // classification: currentProjTyped.classification as ProjectClassification, // Removed classification
-          collect: typeof currentProjTyped.collect === 'boolean' ? currentProjTyped.collect : false, 
+          status: currentProjTyped.status as ProjectStatus,
+          collect: typeof currentProjTyped.collect === 'boolean' ? currentProjTyped.collect : false,
           
           description: currentProjTyped.description ? String(currentProjTyped.description) : '',
           glosa: currentProjTyped.glosa ? String(currentProjTyped.glosa) : '',
@@ -298,6 +303,9 @@ export default function SettingsPage() {
     }
   };
 
+  if (!mounted) {
+    return null; // o un esqueleto/loader
+  }
 
   return (
     <div className="flex flex-col h-full p-4 md:p-6 lg:p-8">
@@ -329,8 +337,8 @@ export default function SettingsPage() {
                       Selecciona tu tema preferido.
                     </p>
                   </div>
-                  <Select defaultValue="system">
-                    <SelectTrigger className="w-full sm:w-[180px]">
+                  <Select value={theme} onValueChange={setTheme}>
+                    <SelectTrigger className="w-full sm:w-[180px]" id="theme">
                       <SelectValue placeholder="Seleccionar tema" />
                     </SelectTrigger>
                     <SelectContent>
@@ -349,7 +357,7 @@ export default function SettingsPage() {
                     </p>
                   </div>
                   <Select defaultValue="monday">
-                    <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectTrigger className="w-full sm:w-[180px]" id="week-start">
                       <SelectValue placeholder="Seleccionar día" />
                     </SelectTrigger>
                     <SelectContent>
