@@ -6,7 +6,6 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -141,9 +140,9 @@ export default function SettingsPage() {
 
       const validClientItems = rawClientsToImport.filter(item => {
         if (typeof item !== 'object' || item === null || Object.keys(item).length === 0) {
-            const msg = `Item omitido: no es un objeto de cliente válido o está vacío. Item: ${JSON.stringify(item)}`;
+            const msg = `Item de cliente omitido: no es un objeto válido o está vacío. Item: ${JSON.stringify(item)}`;
             console.warn(msg);
-            errorMessages.push(msg);
+            errorMessages.push(msg); // Contabilizar este tipo de error
             errorCount++;
             return false;
         }
@@ -182,7 +181,6 @@ export default function SettingsPage() {
             console.warn(`Formato 'createdAt' inesperado para cliente ${item.name || item.id}, se usará valor por defecto del servidor. Valor recibido:`, item.createdAt);
           }
         }
-
         try {
           return await addClient(clientPayload);
         } catch (serviceError: any) {
@@ -260,14 +258,14 @@ export default function SettingsPage() {
       const importPromises = validProjectItems.map(async (proj) => {
         const currentProjTyped = proj as ProjectImportData;
 
-        const requiredFields: (keyof Omit<ProjectImportData, 'id' | 'createdAt' | 'description' | 'glosa' | 'phone' | 'address' | 'commune' | 'region' | 'windowsCount' | 'squareMeters' | 'uninstall' | 'uninstallTypes' | 'isHidden' >)[] =
+        const requiredFields: (keyof Omit<ProjectImportData, 'id' | 'createdAt' | 'description' | 'glosa' | 'phone' | 'address' | 'commune' | 'region' | 'windowsCount' | 'squareMeters' | 'uninstall' | 'uninstallTypes' | 'isHidden' | 'isPaid' >)[] =
           ['projectNumber', 'clientId', 'date', 'subtotal', 'taxRate', 'status', 'collect'];
 
         const missingFields = requiredFields.filter(field => {
           const value = currentProjTyped[field as keyof ProjectImportData];
           if (field === 'collect') return typeof value !== 'boolean';
           if (typeof value === 'string') return value.trim() === '';
-          if (typeof value === 'number') return isNaN(value);
+          if (typeof value === 'number') return isNaN(value); // Checks for NaN if it's supposed to be a number
           return value === undefined || value === null;
         });
 
@@ -307,6 +305,7 @@ export default function SettingsPage() {
           taxRate: Number(currentProjTyped.taxRate),
           status: currentProjTyped.status as ProjectStatus,
           collect: typeof currentProjTyped.collect === 'boolean' ? currentProjTyped.collect : false,
+          isPaid: typeof currentProjTyped.isPaid === 'boolean' ? currentProjTyped.isPaid : false,
 
           description: currentProjTyped.description ? String(currentProjTyped.description) : undefined,
           glosa: currentProjTyped.glosa ? String(currentProjTyped.glosa) : undefined,
@@ -410,9 +409,6 @@ export default function SettingsPage() {
           if (typeof value === 'string' && (field === 'date' || field === 'createdAt')) {
             return value.trim() === '';
           }
-          // For amount and installments, they are optional, so no check here for missing.
-          // isNaN would be relevant if they are provided but not numbers, handled by Number() conversion.
-
           return value === undefined || value === null;
         });
 
@@ -446,7 +442,7 @@ export default function SettingsPage() {
           createdAt: paymentCreatedAt,
           paymentType: currentPayTyped.paymentType ? String(currentPayTyped.paymentType) : undefined,
           installments: currentPayTyped.installments !== undefined ? Number(currentPayTyped.installments) : undefined,
-          isAdjustment: typeof currentPayTyped.isAdjustment === 'boolean' ? currentPayTyped.isAdjustment : false, // Default to false if not a boolean
+          isAdjustment: typeof currentPayTyped.isAdjustment === 'boolean' ? currentPayTyped.isAdjustment : false,
           notes: currentPayTyped.notes ? String(currentPayTyped.notes) : undefined,
         };
 
@@ -543,51 +539,6 @@ export default function SettingsPage() {
                     </SelectContent>
                   </Select>
                 </div>
-
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-4 border rounded-lg">
-                   <div className="space-y-0.5">
-                    <Label htmlFor="week-start" className="text-base">Inicio de semana</Label>
-                     <p className="text-sm text-muted-foreground">
-                      Elige qué día comienza tu semana en el calendario.
-                    </p>
-                  </div>
-                  <Select defaultValue="monday">
-                    <SelectTrigger className="w-full sm:w-[180px]" id="week-start">
-                      <SelectValue placeholder="Seleccionar día" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sunday">Domingo</SelectItem>
-                      <SelectItem value="monday">Lunes</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Notificaciones</CardTitle>
-                <CardDescription>Administra cómo recibes las notificaciones.</CardDescription>
-              </Header>
-              <CardContent className="space-y-6">
-                <div className="flex items-center justify-between gap-2 p-4 border rounded-lg">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="event-reminders" className="text-base">Recordatorios de eventos</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Recibe recordatorios para tus próximos eventos.
-                    </p>
-                  </div>
-                  <Switch id="event-reminders" defaultChecked />
-                </div>
-                <div className="flex items-center justify-between gap-2 p-4 border rounded-lg">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="email-notifications" className="text-base">Notificaciones por correo</Label>
-                     <p className="text-sm text-muted-foreground">
-                      Recibe resúmenes y actualizaciones por correo electrónico.
-                    </p>
-                  </div>
-                  <Switch id="email-notifications" />
-                </div>
               </CardContent>
             </Card>
             <div className="flex justify-end pt-4">
@@ -636,7 +587,7 @@ export default function SettingsPage() {
                     </Button>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    JSON array. Requeridos: `projectNumber`, `clientId`, `date` (YYYY-MM-DD), `subtotal`, `taxRate`, `status`, `collect`. Opc: `id`, `description`, `glosa`, `createdAt`, `phone`, `address`, `commune`, `region`, `windowsCount`, `squareMeters`, `uninstall`, `uninstallTypes` (array de strings), `isHidden`.
+                    JSON array. Requeridos: `projectNumber`, `clientId`, `date` (YYYY-MM-DD), `subtotal`, `taxRate`, `status`, `collect`. Opc: `id`, `description`, `glosa`, `createdAt`, `phone`, `address`, `commune`, `region`, `windowsCount`, `squareMeters`, `uninstall`, `uninstallTypes` (array de strings), `isHidden`, `isPaid`.
                   </p>
                    <FileDndInput
                     id="import-projects-dnd"
