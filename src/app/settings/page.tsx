@@ -1,3 +1,4 @@
+
 // src/app/settings/page.tsx
 "use client"; 
 
@@ -21,7 +22,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { addClient, type ClientImportData } from '@/services/clientService';
 import { addProject, type ProjectImportData } from '@/services/projectService';
-import { addPayment, type PaymentImportData as PaymentImportDataType } from '@/services/paymentService'; // Renamed to avoid conflict
+import { addPayment, type PaymentImportData as PaymentImportDataType } from '@/services/paymentService';
 import type { ProjectStatus } from '@/types/project';
 import { Loader2, HelpCircle } from 'lucide-react';
 import { useTheme } from "next-themes";
@@ -142,13 +143,12 @@ export default function SettingsPage() {
         if (typeof item !== 'object' || item === null || Object.keys(item).length === 0) {
             const msg = `Item omitido: no es un objeto de cliente válido o está vacío. Item: ${JSON.stringify(item)}`;
             console.warn(msg); 
-            errorMessages.push(msg); // Add to main error list for summary
+            errorMessages.push(msg);
             errorCount++;
             return false;
         }
         return true;
       });
-
 
       const importPromises = validClientItems.map(async (item) => {
         if (!item || typeof item.name !== 'string' || item.name.trim() === '') {
@@ -226,7 +226,7 @@ export default function SettingsPage() {
       setIsImportingClients(false);
       setClientFile(null); 
     }
-  };
+  }; // End of handleImportClients
 
  const handleImportProjects = async () => {
     if (!projectFile) {
@@ -250,7 +250,7 @@ export default function SettingsPage() {
         if (typeof item !== 'object' || item === null || Object.keys(item).length === 0) {
           const msg = `Item de proyecto omitido: no es un objeto válido o está vacío. Item: ${JSON.stringify(item)}`;
           console.warn(msg);
-          errorMessages.push(msg);
+          errorMessages.push(msg); 
           errorCount++;
           return false;
         }
@@ -306,7 +306,7 @@ export default function SettingsPage() {
           subtotal: Number(currentProjTyped.subtotal),
           taxRate: Number(currentProjTyped.taxRate),
           status: currentProjTyped.status as ProjectStatus,
-          collect: typeof currentProjTyped.collect === 'boolean' ? currentProjTyped.collect : false, // Default to false if not boolean
+          collect: typeof currentProjTyped.collect === 'boolean' ? currentProjTyped.collect : false,
           
           description: currentProjTyped.description ? String(currentProjTyped.description) : undefined,
           glosa: currentProjTyped.glosa ? String(currentProjTyped.glosa) : undefined,
@@ -324,10 +324,10 @@ export default function SettingsPage() {
         
         try {
             return await addProject(projectDataPayload);
-        } catch (serviceError: any) {
+        } catch (serviceError: any) { 
             throw new Error(`Error al guardar proyecto '${projectDataPayload.projectNumber || 'Desconocido'}': ${serviceError.message}`);
         }
-      });
+      }); // End of validProjectItems.map
 
       const results = await Promise.allSettled(importPromises);
 
@@ -365,7 +365,7 @@ export default function SettingsPage() {
       setIsImportingProjects(false);
       setProjectFile(null);
     }
-  };
+  }; // End of handleImportProjects
 
   const handleImportPayments = async () => {
     if (!paymentFile) {
@@ -399,22 +399,20 @@ export default function SettingsPage() {
       const importPromises = validPaymentItems.map(async (pay) => {
         const currentPayTyped = pay as PaymentImportDataType;
 
-        // Validation for required fields
         const requiredFields: (keyof PaymentImportDataType)[] = ['id', 'projectId', 'date', 'createdAt', 'isAdjustment'];
         const missingFields = requiredFields.filter(field => {
           const value = currentPayTyped[field as keyof PaymentImportDataType];
           if (field === 'isAdjustment') return typeof value !== 'boolean';
-          if (field === 'id' || field === 'projectId' || field === 'paymentMethod' || field === 'paymentType' || field === 'notes') {
-             // These string fields can be empty but not null/undefined if required by schema (id, projectId are)
+          if (field === 'id' || field === 'projectId') {
              if (typeof value === 'string') return value.trim() === '';
              return value === undefined || value === null;
           }
-          if (typeof value === 'string' && (field === 'date' || field === 'createdAt')) { // Date strings
+          if (typeof value === 'string' && (field === 'date' || field === 'createdAt')) {
             return value.trim() === '';
           }
-          if (typeof value === 'number' && (field === 'amount' || field === 'installments')) return isNaN(value); // amount & installments are optional numbers
+          if (typeof value === 'number' && (field === 'amount' || field === 'installments')) return isNaN(value); 
           
-          return value === undefined || value === null; // General check for other types
+          return value === undefined || value === null;
         });
 
         if (missingFields.length > 0) {
@@ -493,8 +491,7 @@ export default function SettingsPage() {
       setIsImportingPayments(false);
       setPaymentFile(null);
     }
-  };
-
+  }; // End of handleImportPayments
 
   if (!mounted) {
     return (
