@@ -1,4 +1,3 @@
-
 // src/app/settings/page.tsx
 "use client"; 
 
@@ -22,6 +21,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { addClient, type ClientImportData } from '@/services/clientService';
 import { addProject, type ProjectImportData } from '@/services/projectService';
+import { addPayment, type PaymentImportData as PaymentImportDataType } from '@/services/paymentService'; // Renamed to avoid conflict
 import type { ProjectStatus } from '@/types/project';
 import { Loader2, HelpCircle } from 'lucide-react';
 import { useTheme } from "next-themes";
@@ -67,8 +67,24 @@ const projectJsonSchemaExample = `
     "squareMeters": 50.5 (opcional, número, defecto 0)",
     "uninstall": false (opcional, boolean, defecto false)",
     "uninstallTypes": ["Marcos antiguos", "Protecciones (opcional, array de strings)"],
-    "uninstallOther": "Retiro de escombros específicos (opcional)",
     "isHidden": false (opcional, boolean, defecto false)"
+  }
+]
+`.trim();
+
+const paymentJsonSchemaExample = `
+[
+  {
+    "id": "uuid-del-pago-requerido",
+    "projectId": "uuid-del-proyecto-asociado-requerido",
+    "amount": 1000.00 (opcional, número)",
+    "date": "2024-08-15 (requerido, formato YYYY-MM-DD o ISO 8601)",
+    "paymentMethod": "transferencia (opcional, string)",
+    "createdAt": "2024-08-15T10:30:00.000Z (requerido, formato ISO 8601 o YYYY-MM-DD)",
+    "paymentType": "abono inicial (opcional, string)",
+    "installments": 1 (opcional, número, para tarjetas)",
+    "isAdjustment": false (requerido, boolean: true o false)",
+    "notes": "Notas adicionales sobre el pago (opcional)"
   }
 ]
 `.trim();
@@ -79,10 +95,13 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const [clientFile, setClientFile] = useState<File | null>(null);
   const [projectFile, setProjectFile] = useState<File | null>(null);
+  const [paymentFile, setPaymentFile] = useState<File | null>(null);
   const [isImportingClients, setIsImportingClients] = useState(false);
   const [isImportingProjects, setIsImportingProjects] = useState(false);
+  const [isImportingPayments, setIsImportingPayments] = useState(false);
   const [isClientSchemaModalOpen, setIsClientSchemaModalOpen] = useState(false);
   const [isProjectSchemaModalOpen, setIsProjectSchemaModalOpen] = useState(false);
+  const [isPaymentSchemaModalOpen, setIsPaymentSchemaModalOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -95,6 +114,10 @@ export default function SettingsPage() {
 
   const handleProjectFileSelected = (file: File | null) => {
     setProjectFile(file);
+  };
+  
+  const handlePaymentFileSelected = (file: File | null) => {
+    setPaymentFile(file);
   };
 
   const handleImportClients = async () => {
@@ -119,7 +142,7 @@ export default function SettingsPage() {
         if (typeof item !== 'object' || item === null || Object.keys(item).length === 0) {
             const msg = `Item omitido: no es un objeto de cliente válido o está vacío. Item: ${JSON.stringify(item)}`;
             console.warn(msg); 
-            errorMessages.push(msg);
+            errorMessages.push(msg); // Add to main error list for summary
             errorCount++;
             return false;
         }
@@ -128,7 +151,6 @@ export default function SettingsPage() {
 
 
       const importPromises = validClientItems.map(async (item) => {
-        // Basic validation: 'name' is required and must be a non-empty string
         if (!item || typeof item.name !== 'string' || item.name.trim() === '') {
           const msg = `Cliente omitido: falta 'name' o es inválido. ID: ${item?.id || 'N/A'}`;
           throw new Error(msg);
@@ -236,20 +258,17 @@ export default function SettingsPage() {
       });
 
       const importPromises = validProjectItems.map(async (proj) => {
-        // All processing for a single project item, including validation, happens here.
-        // If any part fails, an error is thrown, which rejects this specific promise.
-        // `Promise.allSettled` will catch these rejections.
-
         const currentProjTyped = proj as ProjectImportData; 
         
-        const requiredFields: (keyof Omit<ProjectImportData, 'id' | 'createdAt' | 'description' | 'glosa' | 'phone' | 'address' | 'commune' | 'region' | 'windowsCount' | 'squareMeters' | 'uninstall' | 'uninstallTypes' | 'uninstallOther' | 'isHidden'>)[] = ['projectNumber', 'clientId', 'date', 'subtotal', 'taxRate', 'status', 'collect'];
+        const requiredFields: (keyof Omit<ProjectImportData, 'id' | 'createdAt' | 'description' | 'glosa' | 'phone' | 'address' | 'commune' | 'region' | 'windowsCount' | 'squareMeters' | 'uninstall' | 'uninstallTypes' | 'isHidden' >)[] = 
+          ['projectNumber', 'clientId', 'date', 'subtotal', 'taxRate', 'status', 'collect'];
         
         const missingFields = requiredFields.filter(field => {
           const value = currentProjTyped[field as keyof ProjectImportData];
-          if (field === 'collect') return typeof value !== 'boolean'; // collect must be boolean
+          if (field === 'collect') return typeof value !== 'boolean'; 
           if (typeof value === 'string') return value.trim() === '';
           if (typeof value === 'number') return isNaN(value);
-          return value === undefined || value === null; // For other required fields
+          return value === undefined || value === null;
         });
         
         if (missingFields.length > 0) {
@@ -271,11 +290,11 @@ export default function SettingsPage() {
               projectCreatedAt = new Date(currentProjTyped.createdAt as string);
               if (isNaN(projectCreatedAt.getTime())) {
                   console.warn(`Proyecto '${currentProjTyped.projectNumber || 'Desconocido'}': Fecha de creación inválida, se usará timestamp del servidor. Valor:`, currentProjTyped.createdAt);
-                  projectCreatedAt = undefined; // Let service handle serverTimestamp
+                  projectCreatedAt = undefined; 
               }
           } catch(e) {
               console.warn(`Proyecto '${currentProjTyped.projectNumber || 'Desconocido'}': Error al parsear fecha de creación, se usará timestamp del servidor. Valor:`, currentProjTyped.createdAt);
-              projectCreatedAt = undefined; // Let service handle serverTimestamp
+              projectCreatedAt = undefined; 
           }
         }
 
@@ -287,7 +306,7 @@ export default function SettingsPage() {
           subtotal: Number(currentProjTyped.subtotal),
           taxRate: Number(currentProjTyped.taxRate),
           status: currentProjTyped.status as ProjectStatus,
-          collect: typeof currentProjTyped.collect === 'boolean' ? currentProjTyped.collect : false,
+          collect: typeof currentProjTyped.collect === 'boolean' ? currentProjTyped.collect : false, // Default to false if not boolean
           
           description: currentProjTyped.description ? String(currentProjTyped.description) : undefined,
           glosa: currentProjTyped.glosa ? String(currentProjTyped.glosa) : undefined,
@@ -300,11 +319,9 @@ export default function SettingsPage() {
           squareMeters: currentProjTyped.squareMeters ? Number(currentProjTyped.squareMeters) : 0,
           uninstall: typeof currentProjTyped.uninstall === 'boolean' ? currentProjTyped.uninstall : false,
           uninstallTypes: Array.isArray(currentProjTyped.uninstallTypes) ? currentProjTyped.uninstallTypes.map(String).filter(Boolean) : [],
-          uninstallOther: currentProjTyped.uninstallOther ? String(currentProjTyped.uninstallOther) : undefined,
           isHidden: typeof currentProjTyped.isHidden === 'boolean' ? currentProjTyped.isHidden : false,
         };
         
-        // Inner try-catch specifically for the addProject service call
         try {
             return await addProject(projectDataPayload);
         } catch (serviceError: any) {
@@ -319,7 +336,6 @@ export default function SettingsPage() {
           successCount++;
         } else { 
           errorCount++;
-          // result.reason is the Error object thrown from the map callback
           const errorMessage = result.reason?.message || 'Error desconocido durante la importación del proyecto.';
           errorMessages.push(errorMessage);
           console.error("Error en la importación de proyecto:", result.reason); 
@@ -351,6 +367,135 @@ export default function SettingsPage() {
     }
   };
 
+  const handleImportPayments = async () => {
+    if (!paymentFile) {
+      toast({ title: "Error", description: "Por favor, selecciona un archivo de pagos.", variant: "destructive" });
+      return;
+    }
+    setIsImportingPayments(true);
+    let successCount = 0;
+    let errorCount = 0;
+    const errorMessages: string[] = [];
+
+    try {
+      const fileContent = await paymentFile.text();
+      const paymentsToImportJSON: any[] = JSON.parse(fileContent);
+
+      if (!Array.isArray(paymentsToImportJSON)) {
+        throw new Error("El archivo JSON de pagos debe contener un array.");
+      }
+
+      const validPaymentItems = paymentsToImportJSON.filter(item => {
+        if (typeof item !== 'object' || item === null || Object.keys(item).length === 0) {
+          const msg = `Item de pago omitido: no es un objeto válido o está vacío. Item: ${JSON.stringify(item)}`;
+          console.warn(msg);
+          errorMessages.push(msg);
+          errorCount++;
+          return false;
+        }
+        return true;
+      });
+
+      const importPromises = validPaymentItems.map(async (pay) => {
+        const currentPayTyped = pay as PaymentImportDataType;
+
+        // Validation for required fields
+        const requiredFields: (keyof PaymentImportDataType)[] = ['id', 'projectId', 'date', 'createdAt', 'isAdjustment'];
+        const missingFields = requiredFields.filter(field => {
+          const value = currentPayTyped[field as keyof PaymentImportDataType];
+          if (field === 'isAdjustment') return typeof value !== 'boolean';
+          if (field === 'id' || field === 'projectId' || field === 'paymentMethod' || field === 'paymentType' || field === 'notes') {
+             // These string fields can be empty but not null/undefined if required by schema (id, projectId are)
+             if (typeof value === 'string') return value.trim() === '';
+             return value === undefined || value === null;
+          }
+          if (typeof value === 'string' && (field === 'date' || field === 'createdAt')) { // Date strings
+            return value.trim() === '';
+          }
+          if (typeof value === 'number' && (field === 'amount' || field === 'installments')) return isNaN(value); // amount & installments are optional numbers
+          
+          return value === undefined || value === null; // General check for other types
+        });
+
+        if (missingFields.length > 0) {
+          const msg = `Pago '${currentPayTyped.id || 'Desconocido'}' omitido: faltan campos obligatorios o son inválidos: ${missingFields.join(', ')}.`;
+          throw new Error(msg);
+        }
+
+        let paymentDate: Date;
+        try {
+          paymentDate = new Date(currentPayTyped.date as string);
+          if (isNaN(paymentDate.getTime())) throw new Error('Formato de fecha inválido para "date"');
+        } catch (e: any) {
+          throw new Error(`Pago '${currentPayTyped.id || 'Desconocido'}': Fecha de pago inválida. ${e.message}. Valor: ${currentPayTyped.date}`);
+        }
+
+        let paymentCreatedAt: Date;
+        try {
+          paymentCreatedAt = new Date(currentPayTyped.createdAt as string);
+          if (isNaN(paymentCreatedAt.getTime())) throw new Error('Formato de fecha inválido para "createdAt"');
+        } catch (e: any) {
+          throw new Error(`Pago '${currentPayTyped.id || 'Desconocido'}': Fecha de creación inválida. ${e.message}. Valor: ${currentPayTyped.createdAt}`);
+        }
+        
+        const paymentDataPayload: PaymentImportDataType = {
+          id: String(currentPayTyped.id).trim(),
+          projectId: String(currentPayTyped.projectId).trim(),
+          amount: currentPayTyped.amount !== undefined ? Number(currentPayTyped.amount) : undefined,
+          date: paymentDate,
+          paymentMethod: currentPayTyped.paymentMethod ? String(currentPayTyped.paymentMethod) : undefined,
+          createdAt: paymentCreatedAt,
+          paymentType: currentPayTyped.paymentType ? String(currentPayTyped.paymentType) : undefined,
+          installments: currentPayTyped.installments !== undefined ? Number(currentPayTyped.installments) : undefined,
+          isAdjustment: typeof currentPayTyped.isAdjustment === 'boolean' ? currentPayTyped.isAdjustment : false,
+          notes: currentPayTyped.notes ? String(currentPayTyped.notes) : undefined,
+        };
+
+        try {
+          return await addPayment(paymentDataPayload);
+        } catch (serviceError: any) {
+          throw new Error(`Error al guardar pago '${paymentDataPayload.id}': ${serviceError.message}`);
+        }
+      });
+      
+      const results = await Promise.allSettled(importPromises);
+      results.forEach(result => {
+        if (result.status === 'fulfilled') {
+          successCount++;
+        } else {
+          errorCount++;
+          const errorMessage = result.reason?.message || 'Error desconocido durante la importación del pago.';
+          errorMessages.push(errorMessage);
+          console.error("Error en la importación de pago:", result.reason);
+        }
+      });
+
+      let description = `${successCount} pagos importados exitosamente. ${errorCount} errores.`;
+      if (errorMessages.length > 0) {
+        description += ` Detalles: ${errorMessages.slice(0, 3).join('; ')}${errorMessages.length > 3 ? '...' : ''}`;
+      }
+
+      toast({
+        title: "Importación de Pagos Completada",
+        description: description,
+        variant: errorCount > 0 ? "destructive" : "default",
+        duration: errorCount > 0 ? 10000 : 5000,
+      });
+
+    } catch (error: any) {
+      console.error("Error general durante la importación de pagos:", error);
+      toast({
+        title: "Error de Importación General",
+        description: `No se pudo importar pagos: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsImportingPayments(false);
+      setPaymentFile(null);
+    }
+  };
+
+
   if (!mounted) {
     return (
       <div className="flex flex-col h-full p-4 md:p-6 lg:p-8 items-center justify-center">
@@ -370,7 +515,7 @@ export default function SettingsPage() {
       </header>
       <main className="flex-grow">
         <Tabs defaultValue="general" className="w-full space-y-6">
-          <TabsList className="grid w-full grid-cols-2 md:w-1/2">
+          <TabsList className="grid w-full grid-cols-2 md:w-1/2 lg:w-1/3">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="datos">Datos</TabsTrigger>
           </TabsList>
@@ -425,7 +570,7 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle>Notificaciones</CardTitle>
                 <CardDescription>Administra cómo recibes las notificaciones.</CardDescription>
-              </CardHeader>
+              </Header>
               <CardContent className="space-y-6">
                 <div className="flex items-center justify-between gap-2 p-4 border rounded-lg">
                   <div className="space-y-0.5">
@@ -448,7 +593,7 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
             <div className="flex justify-end pt-4">
-                <Button>Guardar Cambios (General)</Button>
+                <Button onClick={() => toast({title: "Próximamente", description: "Guardar preferencias generales estará disponible pronto."})}>Guardar Cambios (General)</Button>
             </div>
           </TabsContent>
 
@@ -456,9 +601,10 @@ export default function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Importar Datos</CardTitle>
-                <CardDescription>Importa clientes o proyectos desde archivos JSON.</CardDescription>
+                <CardDescription>Importa clientes, proyectos o pagos desde archivos JSON.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-8">
+                {/* Importar Clientes */}
                 <div className="space-y-3 p-4 border rounded-lg">
                   <div className="flex items-center gap-2">
                     <Label htmlFor="import-clients-dnd" className="text-base font-semibold">Importar Clientes (JSON)</Label>
@@ -483,6 +629,7 @@ export default function SettingsPage() {
                   </Button>
                 </div>
 
+                {/* Importar Proyectos */}
                 <div className="space-y-3 p-4 border rounded-lg">
                   <div className="flex items-center gap-2">
                     <Label htmlFor="import-projects-dnd" className="text-base font-semibold">Importar Proyectos (JSON)</Label>
@@ -491,7 +638,7 @@ export default function SettingsPage() {
                     </Button>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    JSON array. Requeridos: `projectNumber`, `clientId`, `date` (YYYY-MM-DD), `subtotal`, `taxRate`, `status`, `collect`. Opc: `id`, `description`, `glosa`, `createdAt`, `phone`, `address`, `commune`, `region`, `windowsCount`, `squareMeters`, `uninstall`, `uninstallTypes` (array de strings), `uninstallOther`, `isHidden`.
+                    JSON array. Requeridos: `projectNumber`, `clientId`, `date` (YYYY-MM-DD), `subtotal`, `taxRate`, `status`, `collect`. Opc: `id`, `description`, `glosa`, `createdAt`, `phone`, `address`, `commune`, `region`, `windowsCount`, `squareMeters`, `uninstall`, `uninstallTypes` (array de strings), `isHidden`.
                   </p>
                    <FileDndInput
                     id="import-projects-dnd"
@@ -506,12 +653,39 @@ export default function SettingsPage() {
                     Importar Proyectos
                   </Button>
                 </div>
+
+                {/* Importar Pagos */}
+                <div className="space-y-3 p-4 border rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="import-payments-dnd" className="text-base font-semibold">Importar Pagos (JSON)</Label>
+                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setIsPaymentSchemaModalOpen(true)}>
+                        <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    JSON array. Requeridos: `id`, `projectId`, `date` (YYYY-MM-DD o ISO), `createdAt` (YYYY-MM-DD o ISO), `isAdjustment` (boolean). Opc: `amount`, `paymentMethod`, `paymentType`, `installments`, `notes`.
+                  </p>
+                   <FileDndInput
+                    id="import-payments-dnd"
+                    accept=".json"
+                    onFileSelected={handlePaymentFileSelected}
+                    disabled={isImportingPayments}
+                    label={paymentFile ? `Archivo seleccionado: ${paymentFile.name}` : "Arrastra y suelta tu JSON aquí, o haz clic"}
+                    maxSize={5 * 1024 * 1024} // 5MB limit
+                  />
+                  <Button onClick={handleImportPayments} className="w-full sm:w-auto mt-2" disabled={!paymentFile || isImportingPayments}>
+                    {isImportingPayments ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Importar Pagos
+                  </Button>
+                </div>
+
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </main>
 
+      {/* Modal Esquema Clientes */}
       <Dialog open={isClientSchemaModalOpen} onOpenChange={setIsClientSchemaModalOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -531,6 +705,7 @@ export default function SettingsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Modal Esquema Proyectos */}
       <Dialog open={isProjectSchemaModalOpen} onOpenChange={setIsProjectSchemaModalOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
           <DialogHeader>
@@ -552,7 +727,27 @@ export default function SettingsPage() {
         </DialogContent>
       </Dialog>
 
+       {/* Modal Esquema Pagos */}
+      <Dialog open={isPaymentSchemaModalOpen} onOpenChange={setIsPaymentSchemaModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Esquema JSON para Importar Pagos</DialogTitle>
+            <DialogDescription>
+              Asegúrate de que tu archivo JSON siga esta estructura. El campo `id` es requerido para la importación.
+              `projectId` debe ser un ID válido de un proyecto existente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-grow overflow-y-auto pr-2">
+            <CopyableCodeBlock codeString={paymentJsonSchemaExample} />
+          </div>
+          <DialogFooter className="mt-4">
+            <DialogClose asChild>
+              <Button variant="outline">Cerrar</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
-

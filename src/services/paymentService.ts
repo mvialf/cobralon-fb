@@ -1,4 +1,3 @@
-
 // src/services/paymentService.ts
 import {
   collection,
@@ -13,10 +12,11 @@ import {
   Timestamp,
   serverTimestamp,
   getDoc,
-  writeBatch
+  writeBatch,
+  setDoc
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import type { Payment, PaymentDocument } from '@/types/payment';
+import type { Payment, PaymentDocument, PaymentImportData } from '@/types/payment';
 
 const PAYMENTS_COLLECTION = 'payments';
 
@@ -25,15 +25,15 @@ const paymentFromDoc = (docSnapshot: any): Payment => {
   return {
     id: docSnapshot.id,
     ...data,
-    date: data.date instanceof Timestamp ? data.date.toDate() : undefined,
-    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : undefined,
-    updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : undefined,
+    date: data.date.toDate(), // date is now always a Timestamp
+    createdAt: data.createdAt.toDate(), // createdAt is now always a Timestamp
+    updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(),
   } as Payment;
 };
 
 export const getAllPayments = async (): Promise<Payment[]> => {
   const paymentsCollectionRef = collection(db, PAYMENTS_COLLECTION);
-  const q = query(paymentsCollectionRef, orderBy('date', 'desc')); // Order by payment date
+  const q = query(paymentsCollectionRef, orderBy('date', 'desc'));
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(paymentFromDoc);
 };
@@ -54,16 +54,74 @@ export const getPaymentById = async (paymentId: string): Promise<Payment | null>
   return null;
 };
 
-export const addPayment = async (paymentData: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>): Promise<Payment> => {
-  const paymentsCollectionRef = collection(db, PAYMENTS_COLLECTION);
+export const addPayment = async (paymentData: PaymentImportData | Omit<Payment, 'id' | 'updatedAt'>): Promise<Payment> => {
+  
+  let createdAtTimestamp: Timestamp;
+  if (paymentData.createdAt) {
+    try {
+      const date = typeof paymentData.createdAt === 'string' ? new Date(paymentData.createdAt) : paymentData.createdAt;
+      if (isNaN(date.getTime())) {
+        console.warn(`Invalid createdAt date provided for payment. Using server timestamp. Value: ${paymentData.createdAt}`);
+        createdAtTimestamp = serverTimestamp() as Timestamp;
+      } else {
+        createdAtTimestamp = Timestamp.fromDate(date);
+      }
+    } catch (e) {
+      console.warn(`Error parsing createdAt date for payment. Using server timestamp. Value: ${paymentData.createdAt}`, e);
+      createdAtTimestamp = serverTimestamp() as Timestamp;
+    }
+  } else {
+    // This case should ideally not happen if createdAt is required by PaymentImportData
+    // but as a fallback for other uses or if somehow still optional
+    createdAtTimestamp = serverTimestamp() as Timestamp;
+  }
+
+  let paymentDateTimestamp: Timestamp;
+  if (paymentData.date) {
+    try {
+      const date = typeof paymentData.date === 'string' ? new Date(paymentData.date) : paymentData.date;
+      if (isNaN(date.getTime())) {
+        console.warn(`Invalid payment date provided. Using server timestamp for date. Value: ${paymentData.date}`);
+        paymentDateTimestamp = serverTimestamp() as Timestamp; // Or handle as error
+      } else {
+        paymentDateTimestamp = Timestamp.fromDate(date);
+      }
+    } catch (e) {
+      console.warn(`Error parsing payment date. Using server timestamp for date. Value: ${paymentData.date}`, e);
+      paymentDateTimestamp = serverTimestamp() as Timestamp; // Or handle as error
+    }
+  } else {
+    // This case should not happen if date is required
+    console.error("Payment date is missing, which is required.");
+    throw new Error("Payment date is required.");
+  }
+
+
   const dataToSave: Omit<PaymentDocument, 'id'> = {
-    ...paymentData,
-    date: paymentData.date ? Timestamp.fromDate(paymentData.date) : undefined,
-    createdAt: serverTimestamp() as Timestamp,
+    projectId: paymentData.projectId,
+    amount: paymentData.amount ?? undefined, // Firestore handles undefined by not writing the field
+    date: paymentDateTimestamp,
+    paymentMethod: paymentData.paymentMethod ?? undefined,
+    createdAt: createdAtTimestamp,
     updatedAt: serverTimestamp() as Timestamp,
+    paymentType: paymentData.paymentType ?? undefined,
+    installments: paymentData.installments ?? undefined,
+    isAdjustment: paymentData.isAdjustment, // isAdjustment is required
+    notes: paymentData.notes ?? undefined,
   };
-  const docRef = await addDoc(paymentsCollectionRef, dataToSave);
-  // Fetch the newly created document to get server-generated timestamps
+
+  let docRef;
+  // Check if it's PaymentImportData by looking for 'id'
+  if ('id' in paymentData && paymentData.id) {
+    docRef = doc(db, PAYMENTS_COLLECTION, paymentData.id);
+    await setDoc(docRef, dataToSave);
+  } else {
+    // This branch is for Omit<Payment, 'id' | 'updatedAt'> which doesn't have an id
+    // or if PaymentImportData somehow doesn't provide an id
+    const collectionRef = collection(db, PAYMENTS_COLLECTION);
+    docRef = await addDoc(collectionRef, dataToSave);
+  }
+  
   const newDocSnap = await getDoc(docRef);
   return paymentFromDoc(newDocSnap);
 };
@@ -74,8 +132,8 @@ export const updatePayment = async (paymentId: string, paymentData: Partial<Omit
     ...paymentData,
     updatedAt: serverTimestamp() as Timestamp,
   };
-  if (paymentData.hasOwnProperty('date')) {
-     dataToUpdate.date = paymentData.date ? Timestamp.fromDate(paymentData.date) : undefined;
+  if (paymentData.hasOwnProperty('date') && paymentData.date) {
+     dataToUpdate.date = Timestamp.fromDate(paymentData.date);
   }
   await updateDoc(paymentDocRef, dataToUpdate);
 };
