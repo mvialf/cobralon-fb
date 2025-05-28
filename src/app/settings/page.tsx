@@ -1,6 +1,6 @@
 
 // src/app/settings/page.tsx
-"use client"; 
+"use client";
 
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -116,7 +116,7 @@ export default function SettingsPage() {
   const handleProjectFileSelected = (file: File | null) => {
     setProjectFile(file);
   };
-  
+
   const handlePaymentFileSelected = (file: File | null) => {
     setPaymentFile(file);
   };
@@ -138,11 +138,11 @@ export default function SettingsPage() {
       if (!Array.isArray(rawClientsToImport)) {
         throw new Error("El archivo JSON de clientes debe contener un array.");
       }
-      
+
       const validClientItems = rawClientsToImport.filter(item => {
         if (typeof item !== 'object' || item === null || Object.keys(item).length === 0) {
             const msg = `Item omitido: no es un objeto de cliente válido o está vacío. Item: ${JSON.stringify(item)}`;
-            console.warn(msg); 
+            console.warn(msg);
             errorMessages.push(msg);
             errorCount++;
             return false;
@@ -159,7 +159,7 @@ export default function SettingsPage() {
         const clientPayload: ClientImportData = {
           name: item.name,
         };
-        
+
         if (item.id && typeof item.id === 'string' && item.id.trim() !== '') {
           clientPayload.id = item.id.trim();
         }
@@ -182,7 +182,7 @@ export default function SettingsPage() {
             console.warn(`Formato 'createdAt' inesperado para cliente ${item.name || item.id}, se usará valor por defecto del servidor. Valor recibido:`, item.createdAt);
           }
         }
-        
+
         try {
           return await addClient(clientPayload);
         } catch (serviceError: any) {
@@ -195,14 +195,14 @@ export default function SettingsPage() {
       results.forEach(result => {
         if (result.status === 'fulfilled') {
           successCount++;
-        } else { 
+        } else {
           errorCount++;
           const errorMessage = result.reason?.message || 'Error desconocido durante la importación del cliente.';
           errorMessages.push(errorMessage);
           console.error("Error en la importación de cliente:", result.reason);
         }
       });
-      
+
       let description = `${successCount} clientes importados exitosamente. ${errorCount} errores.`;
       if (errorMessages.length > 0) {
         description += ` Detalles: ${errorMessages.slice(0, 3).join('; ')}${errorMessages.length > 3 ? '...' : ''}`;
@@ -224,9 +224,9 @@ export default function SettingsPage() {
       });
     } finally {
       setIsImportingClients(false);
-      setClientFile(null); 
+      setClientFile(null);
     }
-  }; // End of handleImportClients
+  };
 
  const handleImportProjects = async () => {
     if (!projectFile) {
@@ -250,7 +250,7 @@ export default function SettingsPage() {
         if (typeof item !== 'object' || item === null || Object.keys(item).length === 0) {
           const msg = `Item de proyecto omitido: no es un objeto válido o está vacío. Item: ${JSON.stringify(item)}`;
           console.warn(msg);
-          errorMessages.push(msg); 
+          errorMessages.push(msg);
           errorCount++;
           return false;
         }
@@ -258,19 +258,19 @@ export default function SettingsPage() {
       });
 
       const importPromises = validProjectItems.map(async (proj) => {
-        const currentProjTyped = proj as ProjectImportData; 
-        
-        const requiredFields: (keyof Omit<ProjectImportData, 'id' | 'createdAt' | 'description' | 'glosa' | 'phone' | 'address' | 'commune' | 'region' | 'windowsCount' | 'squareMeters' | 'uninstall' | 'uninstallTypes' | 'isHidden' >)[] = 
+        const currentProjTyped = proj as ProjectImportData;
+
+        const requiredFields: (keyof Omit<ProjectImportData, 'id' | 'createdAt' | 'description' | 'glosa' | 'phone' | 'address' | 'commune' | 'region' | 'windowsCount' | 'squareMeters' | 'uninstall' | 'uninstallTypes' | 'isHidden' >)[] =
           ['projectNumber', 'clientId', 'date', 'subtotal', 'taxRate', 'status', 'collect'];
-        
+
         const missingFields = requiredFields.filter(field => {
           const value = currentProjTyped[field as keyof ProjectImportData];
-          if (field === 'collect') return typeof value !== 'boolean'; 
+          if (field === 'collect') return typeof value !== 'boolean';
           if (typeof value === 'string') return value.trim() === '';
           if (typeof value === 'number') return isNaN(value);
           return value === undefined || value === null;
         });
-        
+
         if (missingFields.length > 0) {
            const msg = `Proyecto '${currentProjTyped.projectNumber || 'Desconocido'}' omitido: faltan campos obligatorios o son inválidos: ${missingFields.join(', ')}.`;
            throw new Error(msg);
@@ -278,23 +278,23 @@ export default function SettingsPage() {
 
         let projectDate: Date;
         try {
-          projectDate = new Date(currentProjTyped.date as string); 
+          projectDate = new Date(currentProjTyped.date as string);
           if (isNaN(projectDate.getTime())) throw new Error('Formato de fecha inválido para "date"');
         } catch (e: any) {
           throw new Error(`Proyecto '${currentProjTyped.projectNumber || 'Desconocido'}': Fecha de inicio inválida. ${e.message}. Valor: ${currentProjTyped.date}`);
         }
-        
+
         let projectCreatedAt: Date | undefined = undefined;
         if (currentProjTyped.createdAt) {
           try {
               projectCreatedAt = new Date(currentProjTyped.createdAt as string);
               if (isNaN(projectCreatedAt.getTime())) {
                   console.warn(`Proyecto '${currentProjTyped.projectNumber || 'Desconocido'}': Fecha de creación inválida, se usará timestamp del servidor. Valor:`, currentProjTyped.createdAt);
-                  projectCreatedAt = undefined; 
+                  projectCreatedAt = undefined;
               }
           } catch(e) {
               console.warn(`Proyecto '${currentProjTyped.projectNumber || 'Desconocido'}': Error al parsear fecha de creación, se usará timestamp del servidor. Valor:`, currentProjTyped.createdAt);
-              projectCreatedAt = undefined; 
+              projectCreatedAt = undefined;
           }
         }
 
@@ -307,41 +307,41 @@ export default function SettingsPage() {
           taxRate: Number(currentProjTyped.taxRate),
           status: currentProjTyped.status as ProjectStatus,
           collect: typeof currentProjTyped.collect === 'boolean' ? currentProjTyped.collect : false,
-          
+
           description: currentProjTyped.description ? String(currentProjTyped.description) : undefined,
           glosa: currentProjTyped.glosa ? String(currentProjTyped.glosa) : undefined,
-          createdAt: projectCreatedAt, 
+          createdAt: projectCreatedAt,
           phone: currentProjTyped.phone ? String(currentProjTyped.phone) : undefined,
           address: currentProjTyped.address ? String(currentProjTyped.address) : undefined,
           commune: currentProjTyped.commune ? String(currentProjTyped.commune) : undefined,
-          region: currentProjTyped.region ? String(currentProjTyped.region) : 'RM', 
+          region: currentProjTyped.region ? String(currentProjTyped.region) : 'RM',
           windowsCount: currentProjTyped.windowsCount ? Number(currentProjTyped.windowsCount) : 0,
           squareMeters: currentProjTyped.squareMeters ? Number(currentProjTyped.squareMeters) : 0,
           uninstall: typeof currentProjTyped.uninstall === 'boolean' ? currentProjTyped.uninstall : false,
           uninstallTypes: Array.isArray(currentProjTyped.uninstallTypes) ? currentProjTyped.uninstallTypes.map(String).filter(Boolean) : [],
           isHidden: typeof currentProjTyped.isHidden === 'boolean' ? currentProjTyped.isHidden : false,
         };
-        
+
         try {
             return await addProject(projectDataPayload);
-        } catch (serviceError: any) { 
+        } catch (serviceError: any) {
             throw new Error(`Error al guardar proyecto '${projectDataPayload.projectNumber || 'Desconocido'}': ${serviceError.message}`);
         }
-      }); // End of validProjectItems.map
+      });
 
       const results = await Promise.allSettled(importPromises);
 
       results.forEach(result => {
         if (result.status === 'fulfilled') {
           successCount++;
-        } else { 
+        } else {
           errorCount++;
           const errorMessage = result.reason?.message || 'Error desconocido durante la importación del proyecto.';
           errorMessages.push(errorMessage);
-          console.error("Error en la importación de proyecto:", result.reason); 
+          console.error("Error en la importación de proyecto:", result.reason);
         }
       });
-      
+
       let description = `${successCount} proyectos importados exitosamente. ${errorCount} errores.`;
       if (errorMessages.length > 0) {
         description += ` Detalles: ${errorMessages.slice(0, 3).join('; ')}${errorMessages.length > 3 ? '...' : ''}`;
@@ -354,7 +354,7 @@ export default function SettingsPage() {
         duration: errorCount > 0 ? 10000 : 5000,
       });
 
-    } catch (error: any) { 
+    } catch (error: any) {
       console.error("Error general durante la importación de proyectos:", error);
       toast({
         title: "Error de Importación General",
@@ -365,7 +365,7 @@ export default function SettingsPage() {
       setIsImportingProjects(false);
       setProjectFile(null);
     }
-  }; // End of handleImportProjects
+  };
 
   const handleImportPayments = async () => {
     if (!paymentFile) {
@@ -410,8 +410,9 @@ export default function SettingsPage() {
           if (typeof value === 'string' && (field === 'date' || field === 'createdAt')) {
             return value.trim() === '';
           }
-          if (typeof value === 'number' && (field === 'amount' || field === 'installments')) return isNaN(value); 
-          
+          // For amount and installments, they are optional, so no check here for missing.
+          // isNaN would be relevant if they are provided but not numbers, handled by Number() conversion.
+
           return value === undefined || value === null;
         });
 
@@ -435,7 +436,7 @@ export default function SettingsPage() {
         } catch (e: any) {
           throw new Error(`Pago '${currentPayTyped.id || 'Desconocido'}': Fecha de creación inválida. ${e.message}. Valor: ${currentPayTyped.createdAt}`);
         }
-        
+
         const paymentDataPayload: PaymentImportDataType = {
           id: String(currentPayTyped.id).trim(),
           projectId: String(currentPayTyped.projectId).trim(),
@@ -445,7 +446,7 @@ export default function SettingsPage() {
           createdAt: paymentCreatedAt,
           paymentType: currentPayTyped.paymentType ? String(currentPayTyped.paymentType) : undefined,
           installments: currentPayTyped.installments !== undefined ? Number(currentPayTyped.installments) : undefined,
-          isAdjustment: typeof currentPayTyped.isAdjustment === 'boolean' ? currentPayTyped.isAdjustment : false,
+          isAdjustment: typeof currentPayTyped.isAdjustment === 'boolean' ? currentPayTyped.isAdjustment : false, // Default to false if not a boolean
           notes: currentPayTyped.notes ? String(currentPayTyped.notes) : undefined,
         };
 
@@ -455,7 +456,7 @@ export default function SettingsPage() {
           throw new Error(`Error al guardar pago '${paymentDataPayload.id}': ${serviceError.message}`);
         }
       });
-      
+
       const results = await Promise.allSettled(importPromises);
       results.forEach(result => {
         if (result.status === 'fulfilled') {
@@ -491,7 +492,7 @@ export default function SettingsPage() {
       setIsImportingPayments(false);
       setPaymentFile(null);
     }
-  }; // End of handleImportPayments
+  };
 
   if (!mounted) {
     return (
