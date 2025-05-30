@@ -17,7 +17,7 @@ import {
   setDoc
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import type { Payment, PaymentDocument, PaymentImportData } from '@/types/payment';
+import type { Payment, PaymentDocument, PaymentImportData, PaymentMethod, PaymentTypeOption } from '@/types/payment';
 
 const PAYMENTS_COLLECTION = 'payments';
 
@@ -90,42 +90,45 @@ export const addPayment = async (paymentData: PaymentImportData | Omit<Payment, 
       paymentDateTimestamp = serverTimestamp() as Timestamp; 
     }
   } else {
-    console.error("Payment date is missing, which is required.");
-    throw new Error("Payment date is required.");
+    // This case should ideally be caught by validation in settings/page.tsx for imports
+    console.error("Payment date is missing, which is required for addPayment service.");
+    throw new Error("Payment date is required for addPayment service.");
   }
 
-  // Base object with required fields
-  const dataToSave: Partial<Omit<PaymentDocument, 'id'>> & { projectId: string; date: Timestamp; createdAt: Timestamp; isAdjustment: boolean; updatedAt: Timestamp } = {
+  // Start with a base object containing only fields that are guaranteed to be present or have defaults handled
+  const dataToSave: { [key: string]: any } = { // Use a more generic type for dynamic construction
     projectId: paymentData.projectId,
     date: paymentDateTimestamp,
     createdAt: createdAtTimestamp,
     updatedAt: serverTimestamp() as Timestamp,
-    isAdjustment: paymentData.isAdjustment, // isAdjustment is required
+    isAdjustment: paymentData.isAdjustment, // isAdjustment is required by PaymentImportData and Payment
   };
 
-  // Add optional fields only if they are not undefined
-  if (paymentData.amount !== undefined) {
-    dataToSave.amount = paymentData.amount;
-  }
-  if (paymentData.paymentMethod !== undefined) {
-    dataToSave.paymentMethod = paymentData.paymentMethod;
-  }
-  if (paymentData.paymentType !== undefined) {
-    dataToSave.paymentType = paymentData.paymentType;
-  }
-  if (paymentData.installments !== undefined) {
-    dataToSave.installments = paymentData.installments;
-  }
-  if (paymentData.notes !== undefined) {
-    dataToSave.notes = paymentData.notes;
-  }
+  // Define optional fields and add them to dataToSave only if they are not undefined
+  const optionalFields: Array<keyof Omit<PaymentImportData, 'id' | 'projectId' | 'date' | 'createdAt' | 'isAdjustment'>> = [
+    'amount', 
+    'paymentMethod', 
+    'paymentType', 
+    'installments', 
+    'notes'
+  ];
+
+  optionalFields.forEach(field => {
+    const key = field as keyof typeof paymentData; // Ensure 'field' is a valid key
+    if (paymentData[key] !== undefined) {
+      dataToSave[field] = paymentData[key];
+    }
+  });
 
 
   let docRef;
+  // When importing, 'id' will be present in paymentData (as PaymentImportData has 'id')
   if ('id' in paymentData && paymentData.id) {
     docRef = doc(db, PAYMENTS_COLLECTION, paymentData.id);
-    await setDoc(docRef, dataToSave as Omit<PaymentDocument, 'id'>); // Cast to ensure type compatibility
+    // Firestore allows saving an empty object, but we ensure required fields are there
+    await setDoc(docRef, dataToSave as Omit<PaymentDocument, 'id'>); 
   } else {
+    // This branch is more for UI-driven additions where ID is auto-generated
     const collectionRef = collection(db, PAYMENTS_COLLECTION);
     docRef = await addDoc(collectionRef, dataToSave as Omit<PaymentDocument, 'id'>);
   }
@@ -137,14 +140,12 @@ export const addPayment = async (paymentData: PaymentImportData | Omit<Payment, 
 export const updatePayment = async (paymentId: string, paymentData: Partial<Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> => {
   const paymentDocRef = doc(db, PAYMENTS_COLLECTION, paymentId);
   
-  // Prepare the data, ensuring optional fields are handled correctly
-  const dataToUpdate: { [key: string]: any } = { // Use a more flexible type for construction
+  const dataToUpdate: { [key: string]: any } = { 
     updatedAt: serverTimestamp() as Timestamp,
   };
 
-  // Iterate over paymentData and add fields if they are not undefined
   (Object.keys(paymentData) as Array<keyof typeof paymentData>).forEach(key => {
-    if (paymentData[key] !== undefined) {
+    if (paymentData[key] !== undefined) { 
       if (key === 'date' && paymentData.date) {
         dataToUpdate.date = Timestamp.fromDate(new Date(paymentData.date));
       } else {
@@ -153,7 +154,6 @@ export const updatePayment = async (paymentId: string, paymentData: Partial<Omit
     }
   });
 
-  // Only update if there's something to update besides updatedAt
   if (Object.keys(dataToUpdate).length > 1) {
     await updateDoc(paymentDocRef, dataToUpdate);
   }
