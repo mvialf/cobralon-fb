@@ -51,8 +51,11 @@ const formatCurrency = (amount: number | undefined | null) => {
 
 const PaymentRowSkeleton = () => (
   <TableRow>
-    <TableCell><div className="h-5 w-32 bg-muted rounded animate-pulse"></div></TableCell>
-    <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
+    <TableCell>
+      <div className="h-5 w-20 bg-muted rounded animate-pulse mb-1"></div>
+      <div className="h-4 w-32 bg-muted rounded animate-pulse"></div>
+    </TableCell>
+    <TableCell className="text-right"><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell><div className="h-5 w-24 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell className="text-right"><div className="h-8 w-8 bg-muted rounded-full inline-block animate-pulse"></div></TableCell>
@@ -61,7 +64,7 @@ const PaymentRowSkeleton = () => (
 
 interface EnrichedPayment extends Payment {
   clientName?: string;
-  // projectNumber?: string; // Removido
+  projectNumber?: string;
 }
 
 export default function PaymentsPage() {
@@ -69,8 +72,6 @@ export default function PaymentsPage() {
   const queryClient = useQueryClientHook();
 
   const [filterText, setFilterText] = useState('');
-  // const [isModalOpen, setIsModalOpen] = useState(false);
-  // const [selectedPayment, setSelectedPayment] = useState<EnrichedPayment | undefined>(undefined);
   const [paymentToDelete, setPaymentToDelete] = useState<EnrichedPayment | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
@@ -99,18 +100,19 @@ export default function PaymentsPage() {
     return payments.map(payment => {
       const project = projectMap.get(payment.projectId);
       const clientName = project ? clientMap.get(project.clientId) : 'Cliente Desconocido';
+      const projectNumber = project ? project.projectNumber : 'Proyecto Desconocido';
       return {
         ...payment,
         clientName: clientName || 'Cliente no encontrado',
-        // projectNumber: project?.projectNumber || 'Proyecto Desconocido', // Removido
+        projectNumber: projectNumber,
       };
     });
   }, [payments, projects, clients, isLoadingPayments, isLoadingProjects, isLoadingClients]);
 
   const filteredPayments = useMemo(() => {
     return enrichedPayments.filter(payment =>
+      payment.projectNumber?.toLowerCase().includes(filterText.toLowerCase()) ||
       payment.clientName?.toLowerCase().includes(filterText.toLowerCase()) ||
-      // payment.projectNumber?.toLowerCase().includes(filterText.toLowerCase()) || // Removido del filtro
       payment.paymentType?.toLowerCase().includes(filterText.toLowerCase()) ||
       payment.paymentMethod?.toLowerCase().includes(filterText.toLowerCase())
     );
@@ -144,8 +146,6 @@ export default function PaymentsPage() {
   };
   
   const handleEditPayment = (payment: EnrichedPayment) => {
-    // setSelectedPayment(payment);
-    // setIsModalOpen(true);
     toast({ title: "Próximamente", description: "La edición de pagos estará disponible pronto." });
   };
 
@@ -186,7 +186,7 @@ export default function PaymentsPage() {
             <div className="relative w-full max-w-sm">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                placeholder="Filtrar por cliente, tipo..."
+                placeholder="Filtrar por proyecto, cliente, tipo..."
                 value={filterText}
                 onChange={(e) => setFilterText(e.target.value)}
                 className="pl-8"
@@ -198,7 +198,7 @@ export default function PaymentsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Cliente</TableHead>
+                  <TableHead>Proyecto</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead>Fecha</TableHead>
                   <TableHead>Tipo</TableHead>
@@ -211,7 +211,10 @@ export default function PaymentsPage() {
                 ) : filteredPayments.length > 0 ? (
                   filteredPayments.map((payment) => (
                     <TableRow key={payment.id} className={isMutating && paymentToDelete?.id === payment.id ? 'opacity-50' : ''}>
-                      <TableCell className="font-medium">{payment.clientName}</TableCell>
+                      <TableCell className="font-medium">
+                        <div>{payment.projectNumber}</div>
+                        <div className="text-xs text-muted-foreground">{payment.clientName}</div>
+                      </TableCell>
                       <TableCell className="text-right">{formatCurrency(payment.amount)}</TableCell>
                       <TableCell>{payment.date ? formatDate(payment.date, 'P', { locale: es }) : 'N/A'}</TableCell>
                       <TableCell>{payment.paymentType || 'N/A'}</TableCell>
@@ -257,7 +260,8 @@ export default function PaymentsPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
               <AlertDialogDescription>
-                Esta acción no se puede deshacer. Esto eliminará permanentemente el pago de {formatCurrency(paymentToDelete.amount)} del cliente {paymentToDelete.clientName}.
+                Esta acción no se puede deshacer. Esto eliminará permanentemente el pago de {formatCurrency(paymentToDelete.amount)} 
+                asociado al proyecto {paymentToDelete.projectNumber} (Cliente: {paymentToDelete.clientName}).
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
