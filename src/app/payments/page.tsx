@@ -99,12 +99,26 @@ export default function PaymentsPage() {
 
     return payments.map(payment => {
       const project = projectMap.get(payment.projectId);
-      const clientName = project ? clientMap.get(project.clientId) : 'Cliente Desconocido';
-      const projectNumber = project ? project.projectNumber : 'Proyecto Desconocido';
+      let clientNameDisplay = 'Cliente Desconocido';
+      let projectNumberDisplay = 'Proyecto Desconocido';
+
+      if (project) {
+        projectNumberDisplay = project.projectNumber;
+        const clientName = clientMap.get(project.clientId);
+        if (clientName) {
+          clientNameDisplay = clientName;
+        } else {
+          clientNameDisplay = `Cliente no encontrado (ID: ${project.clientId})`;
+        }
+      } else {
+        projectNumberDisplay = `Proyecto no encontrado (ID: ${payment.projectId})`;
+        clientNameDisplay = `N/A (Proyecto ID: ${payment.projectId} no encontrado)`;
+      }
+      
       return {
         ...payment,
-        clientName: clientName || 'Cliente no encontrado',
-        projectNumber: projectNumber,
+        clientName: clientNameDisplay,
+        projectNumber: projectNumberDisplay,
       };
     });
   }, [payments, projects, clients, isLoadingPayments, isLoadingProjects, isLoadingClients]);
@@ -281,3 +295,4 @@ export default function PaymentsPage() {
     </div>
   );
 }
+
