@@ -1,8 +1,15 @@
 // src/types/payment.ts
 import type { Timestamp } from 'firebase/firestore';
 
-export type PaymentMethod = 'efectivo' | 'transferencia' | 'tarjeta de débito' | 'tarjeta de crédito' | 'cheque' | 'otro' | string;
-export type PaymentTypeOption = 'abono inicial' | 'abono parcial' | 'pago final' | 'ajuste positivo' | 'ajuste negativo' | string;
+export const POSSIBLE_PAYMENT_METHODS = ['transferencia', 'tarjeta de crédito', 'cheque', 'tarjeta de débito', 'efectivo', 'otro'] as const;
+// La definición de tipo PaymentMethod puede seguir siendo amplia si se usa en otros lugares,
+// pero la validación de importación usará POSSIBLE_PAYMENT_METHODS.
+export type PaymentMethod = typeof POSSIBLE_PAYMENT_METHODS[number] | string;
+
+export const POSSIBLE_PAYMENT_TYPES = ['abono inicial', 'abono parcial', 'pago final', 'ajuste positivo', 'ajuste negativo', 'otro'] as const;
+// Similar para PaymentTypeOption. Nota: el tipo original incluía ' '. Si ya no es válido, se puede quitar.
+// Por ahora, mantendré el tipo original amplio y la validación usará la constante.
+export type PaymentTypeOption = ' ' | typeof POSSIBLE_PAYMENT_TYPES[number] | string;
 
 export interface Payment {
   id: string;
@@ -31,9 +38,9 @@ export interface PaymentImportData {
   projectId: string;
   amount?: number;
   date: string | Date; // Can be string from JSON or Date object
-  paymentMethod?: PaymentMethod;
+  paymentMethod?: string; // Acepta string, la validación se hará contra POSSIBLE_PAYMENT_METHODS
   createdAt: string | Date; // Can be string from JSON or Date object
-  paymentType?: PaymentTypeOption;
+  paymentType?: string; // Acepta string, la validación se hará contra POSSIBLE_PAYMENT_TYPES
   installments?: number;
   isAdjustment: boolean;
   notes?: string;

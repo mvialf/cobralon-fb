@@ -22,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { addClient, type ClientImportData } from '@/services/clientService';
 import { addProject, type ProjectImportData } from '@/services/projectService';
 import { addPayment, type PaymentImportData as PaymentImportDataType } from '@/services/paymentService';
+import { POSSIBLE_PAYMENT_METHODS, POSSIBLE_PAYMENT_TYPES } from '@/types/payment';
 import type { ProjectStatus } from '@/types/project';
 import { Loader2, HelpCircle } from 'lucide-react';
 import { useTheme } from "next-themes";
@@ -75,13 +76,13 @@ const projectJsonSchemaExample = `
 const paymentJsonSchemaExample = `
 [
   {
-    "id": "uuid-del-pago-requerido",
+    "id": "uuid-del-pago-requerido-o-omitir-para-autogenerar",
     "projectId": "uuid-del-proyecto-asociado-requerido",
     "amount": 1000.00 (opcional, número)",
     "date": "2024-08-15 (requerido, formato YYYY-MM-DD o ISO 8601)",
-    "paymentMethod": "transferencia (opcional, string)",
+    "paymentMethod": "transferencia (opcional, valores aceptados: ${POSSIBLE_PAYMENT_METHODS.join(', ')})",
     "createdAt": "2024-08-15T10:30:00.000Z (requerido, formato ISO 8601 o YYYY-MM-DD)",
-    "paymentType": "abono inicial (opcional, string)",
+    "paymentType": "abono inicial (opcional, valores aceptados: ${POSSIBLE_PAYMENT_TYPES.join(', ')})",
     "installments": 1 (opcional, número, para tarjetas)",
     "isAdjustment": false (requerido, boolean: true o false)",
     "notes": "Notas adicionales sobre el pago (opcional)"
@@ -142,7 +143,7 @@ export default function SettingsPage() {
         if (typeof item !== 'object' || item === null || Object.keys(item).length === 0) {
             const msg = `Item de cliente omitido: no es un objeto válido o está vacío. Item: ${JSON.stringify(item)}`;
             console.warn(msg);
-            errorMessages.push(msg); // Contabilizar este tipo de error
+            errorMessages.push(msg); 
             errorCount++;
             return false;
         }
@@ -150,6 +151,7 @@ export default function SettingsPage() {
       });
 
       const importPromises = validClientItems.map(async (item) => {
+        // Validar campos requeridos
         if (!item || typeof item.name !== 'string' || item.name.trim() === '') {
           const msg = `Cliente omitido: falta 'name' o es inválido. ID: ${item?.id || 'N/A'}`;
           throw new Error(msg);
@@ -159,6 +161,7 @@ export default function SettingsPage() {
           name: item.name,
         };
 
+        // Campos opcionales
         if (item.id && typeof item.id === 'string' && item.id.trim() !== '') {
           clientPayload.id = item.id.trim();
         }
@@ -265,7 +268,7 @@ export default function SettingsPage() {
           const value = currentProjTyped[field as keyof ProjectImportData];
           if (field === 'collect') return typeof value !== 'boolean';
           if (typeof value === 'string') return value.trim() === '';
-          if (typeof value === 'number') return isNaN(value); // Checks for NaN if it's supposed to be a number
+          if (typeof value === 'number') return isNaN(value);
           return value === undefined || value === null;
         });
 
@@ -320,7 +323,7 @@ export default function SettingsPage() {
           uninstallTypes: Array.isArray(currentProjTyped.uninstallTypes) ? currentProjTyped.uninstallTypes.map(String).filter(Boolean) : [],
           isHidden: typeof currentProjTyped.isHidden === 'boolean' ? currentProjTyped.isHidden : false,
         };
-
+        
         try {
             return await addProject(projectDataPayload);
         } catch (serviceError: any) {
@@ -353,7 +356,7 @@ export default function SettingsPage() {
         duration: errorCount > 0 ? 10000 : 5000,
       });
 
-    } catch (error: any) {
+    } catch (error: any)      {
       console.error("Error general durante la importación de proyectos:", error);
       toast({
         title: "Error de Importación General",
@@ -432,6 +435,18 @@ export default function SettingsPage() {
         } catch (e: any) {
           throw new Error(`Pago '${currentPayTyped.id || 'Desconocido'}': Fecha de creación inválida. ${e.message}. Valor: ${currentPayTyped.createdAt}`);
         }
+        
+        // Validar paymentMethod
+        if (currentPayTyped.paymentMethod && !POSSIBLE_PAYMENT_METHODS.includes(currentPayTyped.paymentMethod as any)) {
+          throw new Error(`Pago '${currentPayTyped.id || 'Desconocido'}': campo 'paymentMethod' con valor "${currentPayTyped.paymentMethod}" es incorrecto. Valores aceptados: ${POSSIBLE_PAYMENT_METHODS.join(', ')}.`);
+        }
+
+        // Validar paymentType
+        if (currentPayTyped.paymentType && !POSSIBLE_PAYMENT_TYPES.includes(currentPayTyped.paymentType as any)) {
+          // Nota: POSSIBLE_PAYMENT_TYPES no incluye ' '. Si se necesita, se debe añadir a la constante.
+          throw new Error(`Pago '${currentPayTyped.id || 'Desconocido'}': campo 'paymentType' con valor "${currentPayTyped.paymentType}" es incorrecto. Valores aceptados: ${POSSIBLE_PAYMENT_TYPES.join(', ')}.`);
+        }
+
 
         const paymentDataPayload: PaymentImportDataType = {
           id: String(currentPayTyped.id).trim(),
@@ -683,7 +698,7 @@ export default function SettingsPage() {
             <DialogTitle>Esquema JSON para Importar Pagos</DialogTitle>
             <DialogDescription>
               Asegúrate de que tu archivo JSON siga esta estructura. El campo `id` es requerido para la importación.
-              `projectId` debe ser un ID válido de un proyecto existente.
+              `projectId` debe ser un ID válido de un proyecto existente. Los campos `paymentMethod` y `paymentType` tienen valores específicos aceptados.
             </DialogDescription>
           </DialogHeader>
           <div className="flex-grow overflow-y-auto pr-2">
