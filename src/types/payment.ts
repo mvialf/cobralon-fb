@@ -6,7 +6,7 @@ export const POSSIBLE_PAYMENT_METHODS = ['transferencia', 'tarjeta de crédito',
 // pero la validación de importación usará POSSIBLE_PAYMENT_METHODS.
 export type PaymentMethod = typeof POSSIBLE_PAYMENT_METHODS[number] | string;
 
-export const POSSIBLE_PAYMENT_TYPES = ['abono inicial', 'abono parcial', 'pago final', 'ajuste positivo', 'ajuste negativo', 'otro'] as const;
+export const POSSIBLE_PAYMENT_TYPES = ['proyecto', 'cliente', 'otro'] as const;
 // Similar para PaymentTypeOption. Nota: el tipo original incluía ' '. Si ya no es válido, se puede quitar.
 // Por ahora, mantendré el tipo original amplio y la validación usará la constante.
 export type PaymentTypeOption = ' ' | typeof POSSIBLE_PAYMENT_TYPES[number] | string;
