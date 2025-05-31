@@ -18,8 +18,10 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import type { Payment, PaymentDocument, PaymentImportData, PaymentMethod, PaymentTypeOption } from '@/types/payment';
+import type { ProjectDocument } from '@/types/project'; // Import ProjectDocument for typing
 
 const PAYMENTS_COLLECTION = 'payments';
+const PROJECTS_COLLECTION = 'projects'; // Define projects collection name
 
 const paymentFromDoc = (docSnapshot: any): Payment => {
   const data = docSnapshot.data() as PaymentDocument;
@@ -90,21 +92,18 @@ export const addPayment = async (paymentData: PaymentImportData | Omit<Payment, 
       paymentDateTimestamp = serverTimestamp() as Timestamp; 
     }
   } else {
-    // This case should ideally be caught by validation in settings/page.tsx for imports
     console.error("Payment date is missing, which is required for addPayment service.");
     throw new Error("Payment date is required for addPayment service.");
   }
 
-  // Start with a base object containing only fields that are guaranteed to be present or have defaults handled
-  const dataToSave: { [key: string]: any } = { // Use a more generic type for dynamic construction
+  const dataToSave: { [key: string]: any } = { 
     projectId: paymentData.projectId,
     date: paymentDateTimestamp,
     createdAt: createdAtTimestamp,
     updatedAt: serverTimestamp() as Timestamp,
-    isAdjustment: paymentData.isAdjustment, // isAdjustment is required by PaymentImportData and Payment
+    isAdjustment: paymentData.isAdjustment, 
   };
 
-  // Define optional fields and add them to dataToSave only if they are not undefined
   const optionalFields: Array<keyof Omit<PaymentImportData, 'id' | 'projectId' | 'date' | 'createdAt' | 'isAdjustment'>> = [
     'amount', 
     'paymentMethod', 
@@ -114,30 +113,65 @@ export const addPayment = async (paymentData: PaymentImportData | Omit<Payment, 
   ];
 
   optionalFields.forEach(field => {
-    const key = field as keyof typeof paymentData; // Ensure 'field' is a valid key
+    const key = field as keyof typeof paymentData; 
     if (paymentData[key] !== undefined) {
       dataToSave[field] = paymentData[key];
     }
   });
 
-
   let docRef;
-  // When importing, 'id' will be present in paymentData (as PaymentImportData has 'id')
   if ('id' in paymentData && paymentData.id) {
     docRef = doc(db, PAYMENTS_COLLECTION, paymentData.id);
-    // Firestore allows saving an empty object, but we ensure required fields are there
     await setDoc(docRef, dataToSave as Omit<PaymentDocument, 'id'>); 
   } else {
-    // This branch is more for UI-driven additions where ID is auto-generated
     const collectionRef = collection(db, PAYMENTS_COLLECTION);
     docRef = await addDoc(collectionRef, dataToSave as Omit<PaymentDocument, 'id'>);
   }
   
   const newDocSnap = await getDoc(docRef);
-  return paymentFromDoc(newDocSnap);
+  const newPayment = paymentFromDoc(newDocSnap);
+
+  // Update project balance
+  if (newPayment.projectId && newPayment.amount && newPayment.amount > 0 && !newPayment.isAdjustment) {
+    const projectDocRef = doc(db, PROJECTS_COLLECTION, newPayment.projectId);
+    try {
+        const projectSnap = await getDoc(projectDocRef);
+        if (projectSnap.exists()) {
+            const projectData = projectSnap.data() as ProjectDocument;
+            const currentBalance = projectData.balance ?? (projectData.total ?? 0); // Use total if balance is undefined
+            const newBalance = currentBalance - newPayment.amount;
+            
+            const projectUpdateData: { balance: number, updatedAt: Timestamp, isPaid?: boolean } = { 
+              balance: newBalance, 
+              updatedAt: serverTimestamp() as Timestamp 
+            };
+
+            // Check if project is now fully paid
+            if (newBalance <= 0) {
+              projectUpdateData.isPaid = true;
+            } else if (projectData.isPaid && newBalance > 0) { 
+              // If it was marked as paid, but new balance is > 0 (e.g. adjustment or error correction), mark as not paid
+              projectUpdateData.isPaid = false;
+            }
+            
+            await updateDoc(projectDocRef, projectUpdateData);
+            console.log(`Project ${newPayment.projectId} balance updated to ${newBalance}. isPaid: ${projectUpdateData.isPaid}`);
+        } else {
+            console.warn(`Project with ID ${newPayment.projectId} not found for balance update.`);
+        }
+    } catch (error) {
+        console.error(`Error updating project balance for project ${newPayment.projectId}:`, error);
+        // Consider how to handle this error, e.g., log, notify user, or attempt retry.
+    }
+  }
+
+  return newPayment;
 };
 
 export const updatePayment = async (paymentId: string, paymentData: Partial<Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> => {
+  // Note: This function does not currently recalculate project balance if payment amount changes.
+  // That would require fetching the old payment amount, the project, calculating the difference, and then updating.
+  // For simplicity, this is left out, but it's a consideration for full financial accuracy.
   const paymentDocRef = doc(db, PAYMENTS_COLLECTION, paymentId);
   
   const dataToUpdate: { [key: string]: any } = { 
@@ -154,7 +188,7 @@ export const updatePayment = async (paymentId: string, paymentData: Partial<Omit
     }
   });
 
-  if (Object.keys(dataToUpdate).length > 1) {
+  if (Object.keys(dataToUpdate).length > 1) { // Only update if there's more than just updatedAt
     await updateDoc(paymentDocRef, dataToUpdate);
   }
 };
@@ -162,6 +196,39 @@ export const updatePayment = async (paymentId: string, paymentData: Partial<Omit
 
 export const deletePayment = async (paymentId: string): Promise<void> => {
   const paymentDocRef = doc(db, PAYMENTS_COLLECTION, paymentId);
+  const paymentSnap = await getDoc(paymentDocRef);
+
+  if (paymentSnap.exists()) {
+    const paymentToDelete = paymentFromDoc(paymentSnap);
+
+    // Restore balance to project if payment is deleted
+    if (paymentToDelete.projectId && paymentToDelete.amount && paymentToDelete.amount > 0 && !paymentToDelete.isAdjustment) {
+      const projectDocRef = doc(db, PROJECTS_COLLECTION, paymentToDelete.projectId);
+      try {
+        const projectSnap = await getDoc(projectDocRef);
+        if (projectSnap.exists()) {
+          const projectData = projectSnap.data() as ProjectDocument;
+          const currentBalance = projectData.balance ?? (projectData.total ?? 0);
+          const newBalance = currentBalance + paymentToDelete.amount;
+          
+          const projectUpdateData: { balance: number, updatedAt: Timestamp, isPaid?: boolean } = { 
+            balance: newBalance, 
+            updatedAt: serverTimestamp() as Timestamp 
+          };
+          // If balance becomes > 0, it's definitely not fully paid
+          if (newBalance > 0 && projectData.isPaid) {
+            projectUpdateData.isPaid = false;
+          }
+
+          await updateDoc(projectDocRef, projectUpdateData);
+          console.log(`Project ${paymentToDelete.projectId} balance restored to ${newBalance} after payment deletion.`);
+        }
+      } catch (error) {
+        console.error(`Error restoring project balance for ${paymentToDelete.projectId} after payment deletion:`, error);
+      }
+    }
+  }
+
   await deleteDoc(paymentDocRef);
 };
 
@@ -178,6 +245,8 @@ export const deletePaymentsForProject = async (projectId: string): Promise<void>
   querySnapshot.docs.forEach(docSnapshot => {
     batch.delete(docSnapshot.ref);
   });
+  // Note: This function does not adjust project balance when deleting all payments for a project.
+  // If a project is deleted, its balance effectively becomes irrelevant, or should be reset/archived.
   await batch.commit();
 };
 

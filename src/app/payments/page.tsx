@@ -41,7 +41,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { DollarSign, Edit, Trash2, GanttChartSquare, Search, Loader2 } from 'lucide-react'; // Changed MoreHorizontal to GanttChartSquare
+import { DollarSign, Edit, Trash2, GanttChartSquare, Search, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const formatCurrency = (amount: number | undefined | null) => {
@@ -74,7 +74,6 @@ export default function PaymentsPage() {
   const [filterText, setFilterText] = useState('');
   const [paymentToDelete, setPaymentToDelete] = useState<EnrichedPayment | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [consoleLogs, setConsoleLogs] = useState<string[]>([]); // State to store console logs (for debugging only)
 
   const { data: payments = [], isLoading: isLoadingPayments, isError: isErrorPayments, error: errorPayments } = useQuery<Payment[], Error>({
     queryKey: ['payments'],
@@ -92,55 +91,40 @@ export default function PaymentsPage() {
   });
 
   const enrichedPayments = useMemo((): EnrichedPayment[] => {
-    const newLogs: string[] = [];
-    newLogs.push(`Datos crudos para enriquecimiento: payments count=${payments.length}, projects count=${projects.length}, clients count=${clients.length}`);
-    
     if (isLoadingPayments || isLoadingProjects || isLoadingClients || !payments || !projects || !clients) {
-      newLogs.push("Datos aún cargando o no disponibles, retornando array vacío.");
-      // setConsoleLogs(prev => [...prev.slice(-20), ...newLogs]); // Uncomment for debugging if needed
       return [];
     }
 
     const projectMap = new Map(projects.map(p => [p.id, p]));
     const clientMap = new Map(clients.map(c => [c.id, c.name]));
-    newLogs.push(`Mapa de proyectos creado con ${projectMap.size} entradas.`);
-    newLogs.push(`Mapa de clientes creado con ${clientMap.size} entradas.`);
 
-
-    const result = payments.map(payment => {
-      newLogs.push(`Procesando pago ID: ${payment.id}, projectId: ${payment.projectId}`);
+    return payments.map(payment => {
       const project = projectMap.get(payment.projectId);
       let clientNameDisplay = 'Cliente Desconocido';
       let projectNumberDisplay = 'Proyecto Desconocido';
 
       if (project) {
-        newLogs.push(`Proyecto encontrado para ID ${payment.projectId}: ${project.projectNumber}, clientId: ${project.clientId}`);
         projectNumberDisplay = project.projectNumber;
-        // if (project.glosa) { // Glosa ya no se muestra aquí directamente
-        //     projectNumberDisplay += ` - ${project.glosa}`;
-        // }
+         if (project.glosa) {
+            projectNumberDisplay += ` - ${project.glosa}`;
+        }
 
         const clientName = clientMap.get(project.clientId);
         if (clientName) {
-          newLogs.push(`Cliente encontrado para ID ${project.clientId}: ${clientName}`);
           clientNameDisplay = clientName;
         } else {
-          newLogs.push(`Cliente NO encontrado para ID ${project.clientId}`);
           clientNameDisplay = `Cliente no encontrado (ID: ${project.clientId})`;
         }
       } else {
-        newLogs.push(`Proyecto NO encontrado para ID ${payment.projectId}`);
         projectNumberDisplay = `Proyecto no encontrado (ID: ${payment.projectId})`;
       }
       
       return {
         ...payment,
         clientName: clientNameDisplay,
-        projectNumber: projectNumberDisplay, // Este es el que se muestra en la celda "Proyecto"
+        projectNumber: projectNumberDisplay,
       };
     });
-    // setConsoleLogs(prev => [...prev.slice(-50), ...newLogs]); // Uncomment for debugging if needed
-    return result;
   }, [payments, projects, clients, isLoadingPayments, isLoadingProjects, isLoadingClients]);
 
   const filteredPayments = useMemo(() => {
@@ -156,6 +140,7 @@ export default function PaymentsPage() {
     mutationFn: deletePayment,
     onSuccess: (_, paymentId) => {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] }); // Invalidate projects due to balance change
       toast({ title: "Pago Eliminado", description: `El pago ha sido eliminado.`, variant: "destructive" });
       setPaymentToDelete(null);
       setIsDeleteDialogOpen(false);
@@ -295,7 +280,7 @@ export default function PaymentsPage() {
               <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
               <AlertDialogDescription>
                 Esta acción no se puede deshacer. Esto eliminará permanentemente el pago de {formatCurrency(paymentToDelete.amount)}
-                asociado al proyecto {paymentToDelete.projectNumber} (Cliente: {paymentToDelete.clientName}).
+                asociado al proyecto {paymentToDelete.projectNumber} (Cliente: {paymentToDelete.clientName}). La eliminación de este pago también actualizará el saldo del proyecto.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -312,9 +297,7 @@ export default function PaymentsPage() {
           </AlertDialogContent>
         </AlertDialog>
       )}
-       {/* <pre className="mt-4 p-4 bg-muted/50 rounded-md text-xs overflow-auto max-h-60">
-        {consoleLogs.join('\n')}
-      </pre> */}
     </div>
   );
 }
+
