@@ -10,7 +10,7 @@ import type { Client } from '@/types/client';
 import type { Payment, PaymentMethod } from '@/types/payment'; // Import Payment types
 import { getProjects, updateProject, deleteProject } from '@/services/projectService';
 import { getClients } from '@/services/clientService';
-import { addPayment } from '@/services/paymentService'; // Import addPayment service
+import { addPayment, getAllPayments } from '@/services/paymentService'; // Import addPayment service
 import { format as formatDate } from '@/lib/calendar-utils';
 import { es } from 'date-fns/locale';
 
@@ -71,6 +71,13 @@ const ProjectRowSkeleton = () => (
   </TableRow>
 );
 
+interface EnrichedProject extends ProjectType {
+  clientName?: string;
+  totalPayments: number; // This will hold sumOfPaymentsForProject
+  // balance will now be the dynamically calculated one.
+}
+
+
 export default function ProjectsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClientHook();
@@ -95,16 +102,46 @@ export default function ProjectsPage() {
     queryFn: getClients,
   });
 
+  const { data: allPayments = [], isLoading: isLoadingAllPayments } = useQuery<Payment[], Error>({
+    queryKey: ['payments'], // Re-use the 'payments' query key if getAllPayments fetches all of them
+    queryFn: getAllPayments,
+  });
+
   const clientMap = useMemo(() => {
     if (isLoadingClients || !clients) return new Map<string, string>();
     return new Map(clients.map(client => [client.id, client.name]));
   }, [clients, isLoadingClients]);
+
+  const enrichedProjects = useMemo((): EnrichedProject[] => {
+    if (isLoadingProjects || isLoadingClients || isLoadingAllPayments || !projects || !clients || !allPayments) {
+      return [];
+    }
+
+    return projects.map(project => {
+      const clientName = clientMap.get(project.clientId) || 'Cliente Desconocido';
+      
+      const sumOfPaymentsForProject = allPayments
+        .filter(p => p.projectId === project.id && !p.isAdjustment && typeof p.amount === 'number')
+        .reduce((acc, p) => acc + (p.amount || 0), 0);
+
+      const calculatedBalance = (project.total ?? 0) - sumOfPaymentsForProject;
+      
+      return {
+        ...project,
+        clientName,
+        balance: calculatedBalance, // Store the dynamically calculated balance
+        totalPayments: sumOfPaymentsForProject, // Directly use the sum for the "Abonos" column
+      };
+    });
+  }, [projects, clients, allPayments, clientMap, isLoadingProjects, isLoadingClients, isLoadingAllPayments]);
+
 
   const updateProjectMutation = useMutation({
     mutationFn: (variables: { projectId: string; projectData: Partial<Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt'>> }) =>
       updateProject(variables.projectId, variables.projectData),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] }); // Invalidate payments too, as project update might affect balance logic
       if (!variables.projectData.hasOwnProperty('isPaid')) {
            toast({ title: "Proyecto Actualizado", description: `El proyecto ha sido actualizado.` });
       }
@@ -118,6 +155,7 @@ export default function ProjectsPage() {
     mutationFn: deleteProject,
     onSuccess: (_, projectId) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] }); // Payments related to this project are deleted
       toast({ title: "Proyecto Eliminado", description: `"${projectToDelete?.projectNumber || 'El proyecto'}" ha sido eliminado.`, variant: "destructive" });
       setSelectedRows(prev => {
         const newSelected = {...prev};
@@ -138,7 +176,7 @@ export default function ProjectsPage() {
     mutationFn: (paymentData: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>) => addPayment(paymentData),
     onSuccess: (newPayment) => {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
-      queryClient.invalidateQueries({ queryKey: ['projects'] }); // Invalidate projects to update balance if shown
+      queryClient.invalidateQueries({ queryKey: ['projects'] }); // Invalidate projects to update balance
       toast({ title: "Pago Registrado", description: `Pago de ${formatCurrency(newPayment.amount)} para el proyecto "${selectedProjectForPayment?.projectNumber}" registrado.` });
       setIsPaymentModalOpen(false);
       setSelectedProjectForPayment(null);
@@ -149,7 +187,9 @@ export default function ProjectsPage() {
   });
 
   const handleOpenPaymentModal = (project: ProjectType) => {
-    setSelectedProjectForPayment(project);
+    // Use the enriched project if available, otherwise the raw project
+    const projectForModal = enrichedProjects.find(ep => ep.id === project.id) || project;
+    setSelectedProjectForPayment(projectForModal);
     setIsPaymentModalOpen(true);
   };
 
@@ -200,15 +240,15 @@ export default function ProjectsPage() {
   };
 
 
-  const filteredProjects = useMemo(() => projects.filter(project => {
-    const clientName = clientMap.get(project.clientId)?.toLowerCase() || '';
+  const filteredProjects = useMemo(() => enrichedProjects.filter(project => {
+    const clientName = project.clientName?.toLowerCase() || '';
     return (
       project.projectNumber.toLowerCase().includes(filterText.toLowerCase()) ||
       clientName.includes(filterText.toLowerCase()) ||
       (project.glosa && project.glosa.toLowerCase().includes(filterText.toLowerCase())) ||
       (project.description && project.description.toLowerCase().includes(filterText.toLowerCase()))
     );
-  }), [projects, clientMap, filterText]);
+  }), [enrichedProjects, filterText]);
 
   const handleSelectAllRows = (checked: boolean) => {
     const newSelectedRows: Record<string, boolean> = {};
@@ -238,7 +278,7 @@ export default function ProjectsPage() {
     );
   }
 
-  const isLoading = isLoadingProjects || isLoadingClients;
+  const isLoading = isLoadingProjects || isLoadingClients || isLoadingAllPayments;
   const isMutating = updateProjectMutation.isPending || deleteProjectMutation.isPending || addPaymentMutation.isPending;
 
   return (
@@ -299,11 +339,10 @@ export default function ProjectsPage() {
                   [...Array(5)].map((_, i) => <ProjectRowSkeleton key={i} />)
                 ) : filteredProjects.length > 0 ? (
                   filteredProjects.map((project) => {
-                    let clientDisplay = clientMap.get(project.clientId) || 'Cliente no encontrado';
+                    let clientDisplay = project.clientName || 'Cliente no encontrado';
                     if (project.glosa && project.glosa.trim() !== '') {
                       clientDisplay += ` - ${project.glosa}`;
                     }
-                    const totalPayments = (project.total ?? 0) - (project.balance ?? 0);
                     const isRowUpdating = updateProjectMutation.isPending && updateProjectMutation.variables?.projectId === project.id;
                     const isRowDeleting = deleteProjectMutation.isPending && projectToDelete?.id === project.id;
                     const isCurrentRowMutating = isRowUpdating || isRowDeleting || (addPaymentMutation.isPending && selectedProjectForPayment?.id === project.id);
@@ -348,7 +387,7 @@ export default function ProjectsPage() {
                             aria-label={project.isPaid ? "Proyecto marcado como pagado" : "Marcar proyecto como pagado"}
                           />
                         </TableCell>
-                        <TableCell className="text-right">{formatCurrency(totalPayments)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(project.totalPayments)}</TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
