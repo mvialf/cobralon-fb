@@ -73,7 +73,8 @@ const ProjectRowSkeleton = () => (
 
 interface EnrichedProject extends ProjectType {
   clientName?: string;
-  totalPayments: number; // This will hold sumOfPaymentsForProject
+  totalPayments: number;
+  totalPaymentPercentage: number; 
   // balance will now be the dynamically calculated one.
 }
 
@@ -103,7 +104,7 @@ export default function ProjectsPage() {
   });
 
   const { data: allPayments = [], isLoading: isLoadingAllPayments } = useQuery<Payment[], Error>({
-    queryKey: ['payments'], // Re-use the 'payments' query key if getAllPayments fetches all of them
+    queryKey: ['payments'], 
     queryFn: getAllPayments,
   });
 
@@ -126,11 +127,26 @@ export default function ProjectsPage() {
 
       const calculatedBalance = (project.total ?? 0) - sumOfPaymentsForProject;
       
+      const projectTotalValue = project.total ?? 0;
+      let calculatedTotalPaymentPercentage = 0;
+
+      if (projectTotalValue > 0) {
+        calculatedTotalPaymentPercentage = (sumOfPaymentsForProject / projectTotalValue) * 100;
+      } else if (projectTotalValue === 0 && sumOfPaymentsForProject === 0) {
+        calculatedTotalPaymentPercentage = 100; 
+      } else if (projectTotalValue === 0 && sumOfPaymentsForProject > 0) {
+        calculatedTotalPaymentPercentage = 100; 
+      } else if (projectTotalValue === 0 && sumOfPaymentsForProject < 0) {
+        calculatedTotalPaymentPercentage = 0;
+      }
+      // For projectTotalValue < 0, percentage might be negative or unusual, defaults to 0 here.
+
       return {
         ...project,
         clientName,
-        balance: calculatedBalance, // Store the dynamically calculated balance
-        totalPayments: sumOfPaymentsForProject, // Directly use the sum for the "Abonos" column
+        balance: calculatedBalance, 
+        totalPayments: sumOfPaymentsForProject,
+        totalPaymentPercentage: calculatedTotalPaymentPercentage,
       };
     });
   }, [projects, clients, allPayments, clientMap, isLoadingProjects, isLoadingClients, isLoadingAllPayments]);
@@ -141,7 +157,7 @@ export default function ProjectsPage() {
       updateProject(variables.projectId, variables.projectData),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
-      queryClient.invalidateQueries({ queryKey: ['payments'] }); // Invalidate payments too, as project update might affect balance logic
+      queryClient.invalidateQueries({ queryKey: ['payments'] }); 
       if (!variables.projectData.hasOwnProperty('isPaid')) {
            toast({ title: "Proyecto Actualizado", description: `El proyecto ha sido actualizado.` });
       }
@@ -155,7 +171,7 @@ export default function ProjectsPage() {
     mutationFn: deleteProject,
     onSuccess: (_, projectId) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
-      queryClient.invalidateQueries({ queryKey: ['payments'] }); // Payments related to this project are deleted
+      queryClient.invalidateQueries({ queryKey: ['payments'] }); 
       toast({ title: "Proyecto Eliminado", description: `"${projectToDelete?.projectNumber || 'El proyecto'}" ha sido eliminado.`, variant: "destructive" });
       setSelectedRows(prev => {
         const newSelected = {...prev};
@@ -176,7 +192,7 @@ export default function ProjectsPage() {
     mutationFn: (paymentData: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>) => addPayment(paymentData),
     onSuccess: (newPayment) => {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
-      queryClient.invalidateQueries({ queryKey: ['projects'] }); // Invalidate projects to update balance
+      queryClient.invalidateQueries({ queryKey: ['projects'] }); 
       toast({ title: "Pago Registrado", description: `Pago de ${formatCurrency(newPayment.amount)} para el proyecto "${selectedProjectForPayment?.projectNumber}" registrado.` });
       setIsPaymentModalOpen(false);
       setSelectedProjectForPayment(null);
@@ -187,7 +203,6 @@ export default function ProjectsPage() {
   });
 
   const handleOpenPaymentModal = (project: ProjectType) => {
-    // Use the enriched project if available, otherwise the raw project
     const projectForModal = enrichedProjects.find(ep => ep.id === project.id) || project;
     setSelectedProjectForPayment(projectForModal);
     setIsPaymentModalOpen(true);
@@ -206,7 +221,6 @@ export default function ProjectsPage() {
       paymentMethod: formData.paymentMethod,
       paymentType: 'proyecto',
       isAdjustment: false,
-      // notes and installments are optional and will be undefined, handled by service
     };
     addPaymentMutation.mutate(paymentPayload);
   };
