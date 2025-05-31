@@ -7,8 +7,10 @@ import { useRouter } from 'next/navigation'; // Import useRouter
 import { useQuery, useMutation, useQueryClient as useQueryClientHook } from '@tanstack/react-query';
 import type { ProjectType } from '@/types/project';
 import type { Client } from '@/types/client';
+import type { Payment, PaymentMethod } from '@/types/payment'; // Import Payment types
 import { getProjects, updateProject, deleteProject } from '@/services/projectService';
 import { getClients } from '@/services/clientService';
+import { addPayment } from '@/services/paymentService'; // Import addPayment service
 import { format as formatDate } from '@/lib/calendar-utils';
 import { es } from 'date-fns/locale';
 
@@ -44,8 +46,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { GanttChartSquare, DollarSign, FileText, SquarePen, Trash2, PlusCircle, Briefcase, Loader2, Search } from 'lucide-react';
-// ProjectModal ya no se usa para edición aquí, se navegará a una página
-// import ProjectModal from '@/components/project-modal'; 
+import PaymentModal from '@/components/payment-modal'; // Import PaymentModal
 import { useToast } from '@/hooks/use-toast';
 
 // Helper to format currency (Chilean Pesos example)
@@ -73,12 +74,15 @@ const ProjectRowSkeleton = () => (
 export default function ProjectsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClientHook();
-  const router = useRouter(); // Initialize router
+  const router = useRouter(); 
 
   const [filterText, setFilterText] = useState('');
   const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
   const [projectToDelete, setProjectToDelete] = useState<ProjectType | null>(null);
   const [isDeleteProjectDialogOpen, setIsDeleteProjectDialogOpen] = useState(false);
+  
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedProjectForPayment, setSelectedProjectForPayment] = useState<ProjectType | null>(null);
 
 
   const { data: projects = [], isLoading: isLoadingProjects, isError: isErrorProjects, error: errorProjects } = useQuery<ProjectType[], Error>({
@@ -101,7 +105,6 @@ export default function ProjectsPage() {
       updateProject(variables.projectId, variables.projectData),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
-      // Toast for 'isPaid' toggle is handled in handleToggleIsPaid directly
       if (!variables.projectData.hasOwnProperty('isPaid')) {
            toast({ title: "Proyecto Actualizado", description: `El proyecto ha sido actualizado.` });
       }
@@ -131,6 +134,44 @@ export default function ProjectsPage() {
     },
   });
 
+  const addPaymentMutation = useMutation({
+    mutationFn: (paymentData: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>) => addPayment(paymentData),
+    onSuccess: (newPayment) => {
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] }); // Invalidate projects to update balance if shown
+      toast({ title: "Pago Registrado", description: `Pago de ${formatCurrency(newPayment.amount)} para el proyecto "${selectedProjectForPayment?.projectNumber}" registrado.` });
+      setIsPaymentModalOpen(false);
+      setSelectedProjectForPayment(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error al Registrar Pago", description: err.message, variant: "destructive" });
+    }
+  });
+
+  const handleOpenPaymentModal = (project: ProjectType) => {
+    setSelectedProjectForPayment(project);
+    setIsPaymentModalOpen(true);
+  };
+
+  const handleSavePayment = (formData: { amount: number; date: Date; paymentMethod: PaymentMethod }) => {
+    if (!selectedProjectForPayment) {
+      toast({ title: "Error", description: "No hay un proyecto seleccionado para el pago.", variant: "destructive" });
+      return;
+    }
+
+    const paymentPayload: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'> = {
+      projectId: selectedProjectForPayment.id,
+      amount: formData.amount,
+      date: formData.date,
+      paymentMethod: formData.paymentMethod,
+      paymentType: 'proyecto',
+      isAdjustment: false,
+      // notes and installments are optional and will be undefined, handled by service
+    };
+    addPaymentMutation.mutate(paymentPayload);
+  };
+
+
   const handleDeleteProjectInitiate = (project: ProjectType) => {
     setProjectToDelete(project);
     setIsDeleteProjectDialogOpen(true);
@@ -154,16 +195,7 @@ export default function ProjectsPage() {
         description: `El proyecto ha sido marcado como ${newIsPaidState ? 'pagado' : 'no pagado'}.`,
       });
     } catch (error) {
-      let message = "Error actualizando estado de pago.";
-      if (error instanceof Error) {
-        message = error.message;
-      }
-      console.error("Error toggling isPaid status:", error);
-      toast({
-        title: "Error",
-        description: message,
-        variant: "destructive",
-      });
+      // Error toast is handled by mutation's onError
     }
   };
 
@@ -207,7 +239,7 @@ export default function ProjectsPage() {
   }
 
   const isLoading = isLoadingProjects || isLoadingClients;
-  const isMutating = updateProjectMutation.isPending || deleteProjectMutation.isPending;
+  const isMutating = updateProjectMutation.isPending || deleteProjectMutation.isPending || addPaymentMutation.isPending;
 
   return (
     <div className="flex flex-col h-full p-4 md:p-6 lg:p-8">
@@ -274,7 +306,7 @@ export default function ProjectsPage() {
                     const abonos = (project.total ?? 0) - (project.balance ?? 0);
                     const isRowUpdating = updateProjectMutation.isPending && updateProjectMutation.variables?.projectId === project.id;
                     const isRowDeleting = deleteProjectMutation.isPending && projectToDelete?.id === project.id;
-                    const isCurrentRowMutating = isRowUpdating || isRowDeleting;
+                    const isCurrentRowMutating = isRowUpdating || isRowDeleting || (addPaymentMutation.isPending && selectedProjectForPayment?.id === project.id);
                     
                     return (
                       <TableRow
@@ -321,11 +353,11 @@ export default function ProjectsPage() {
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" disabled={isCurrentRowMutating} aria-label="Más acciones">
-                                {isCurrentRowMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <GanttChartSquare className="h-4 w-4" />}
+                                {isCurrentRowMutating && (isRowDeleting || (isRowUpdating && !updateProjectMutation.variables?.projectData.hasOwnProperty('isPaid'))) ? <Loader2 className="h-4 w-4 animate-spin" /> : <GanttChartSquare className="h-4 w-4" />}
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onSelect={() => console.log("Registrar Pago para:", project.projectNumber)} disabled={isMutating}>
+                              <DropdownMenuItem onSelect={() => handleOpenPaymentModal(project)} disabled={isMutating}>
                                 <DollarSign className="mr-2 h-4 w-4" />
                                 <span>Registrar Pago</span>
                               </DropdownMenuItem>
@@ -363,7 +395,15 @@ export default function ProjectsPage() {
         </Card>
       </main>
       
-      {/* El ProjectModal ya no se usa aquí para editar, se navega a una página */}
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => {
+          setIsPaymentModalOpen(false);
+          setSelectedProjectForPayment(null);
+        }}
+        onSave={handleSavePayment}
+        project={selectedProjectForPayment}
+      />
 
       {projectToDelete && (
         <AlertDialog open={isDeleteProjectDialogOpen} onOpenChange={setIsDeleteProjectDialogOpen}>
