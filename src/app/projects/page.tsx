@@ -303,7 +303,7 @@ export default function ProjectsPage() {
                     if (project.glosa && project.glosa.trim() !== '') {
                       clientDisplay += ` - ${project.glosa}`;
                     }
-                    const abonos = (project.total ?? 0) - (project.balance ?? 0);
+                    const totalPayments = (project.total ?? 0) - (project.balance ?? 0);
                     const isRowUpdating = updateProjectMutation.isPending && updateProjectMutation.variables?.projectId === project.id;
                     const isRowDeleting = deleteProjectMutation.isPending && projectToDelete?.id === project.id;
                     const isCurrentRowMutating = isRowUpdating || isRowDeleting || (addPaymentMutation.isPending && selectedProjectForPayment?.id === project.id);
@@ -348,7 +348,7 @@ export default function ProjectsPage() {
                             aria-label={project.isPaid ? "Proyecto marcado como pagado" : "Marcar proyecto como pagado"}
                           />
                         </TableCell>
-                        <TableCell className="text-right">{formatCurrency(abonos)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(totalPayments)}</TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -432,3 +432,4 @@ export default function ProjectsPage() {
     </div>
   );
 }
+
