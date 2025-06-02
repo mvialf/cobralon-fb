@@ -1,4 +1,3 @@
-
 // src/app/projects/[projectId]/edit/page.tsx
 "use client";
 
@@ -17,6 +16,7 @@ import type { Client } from '@/types/client';
 import { getProjectById, updateProject } from '@/services/projectService';
 import { getClients, addClient as addClientService } from '@/services/clientService';
 import { useToast } from '@/hooks/use-toast';
+import { UNINSTALL_TYPE_OPTIONS } from '@/lib/constants'; // Import from constants
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,8 +34,6 @@ import ClientModal from '@/components/client-modal';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 
-
-const UNINSTALL_TYPE_OPTIONS = ["Aluminio", "Madera", "Fierro", "PVC", "Americano"];
 
 const projectSchema = z.object({
   clientId: z.string().min(1, "Cliente es requerido."),
