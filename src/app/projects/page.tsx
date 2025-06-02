@@ -28,6 +28,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge'; // Import Badge component
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -139,8 +140,7 @@ export default function ProjectsPage() {
       } else if (projectTotalValue === 0 && sumOfPaymentsForProject < 0) {
         calculatedTotalPaymentPercentage = 0;
       }
-      // For projectTotalValue < 0, percentage might be negative or unusual, defaults to 0 here.
-
+      
       return {
         ...project,
         clientName,
@@ -295,6 +295,22 @@ export default function ProjectsPage() {
   const isLoading = isLoadingProjects || isLoadingClients || isLoadingAllPayments;
   const isMutating = updateProjectMutation.isPending || deleteProjectMutation.isPending || addPaymentMutation.isPending;
 
+  const getStatusBadgeVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
+    switch (status) {
+      case 'completado':
+        return 'default'; // Primary color (often blue or a success-like color depending on theme)
+      case 'en progreso':
+        return 'secondary';
+      case 'cancelado':
+        return 'destructive';
+      case 'ingresado':
+      case 'pendiente aprobación':
+        return 'outline';
+      default:
+        return 'outline';
+    }
+  };
+
   return (
     <div className="flex flex-col h-full p-4 md:p-6 lg:p-8">
       <header className="flex items-center justify-between gap-4 mb-6 md:mb-8">
@@ -382,16 +398,9 @@ export default function ProjectsPage() {
                         <TableCell>{project.date ? formatDate(project.date, 'P', { locale: es }) : 'N/A'}</TableCell>
                         <TableCell className="text-right">{formatCurrency(project.total)}</TableCell>
                         <TableCell>
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            project.status === 'completado' ? 'bg-green-100 text-green-700 dark:bg-green-700/30 dark:text-green-300' :
-                            project.status === 'en progreso' ? 'bg-blue-100 text-blue-700 dark:bg-blue-700/30 dark:text-blue-300' :
-                            project.status === 'cancelado' ? 'bg-red-100 text-red-700 dark:bg-red-700/30 dark:text-red-300' :
-                            project.status === 'ingresado' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-700/30 dark:text-yellow-300' :
-                            project.status === 'pendiente aprobación' ? 'bg-purple-100 text-purple-700 dark:bg-purple-700/30 dark:text-purple-300' :
-                            'bg-gray-100 text-gray-700 dark:bg-gray-700/30 dark:text-gray-300'
-                          }`}>
+                          <Badge variant={getStatusBadgeVariant(project.status)}>
                             {project.status}
-                          </span>
+                          </Badge>
                         </TableCell>
                         <TableCell className="text-center">
                           <Switch
