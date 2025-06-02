@@ -16,7 +16,7 @@ import type { Client } from '@/types/client';
 import { getProjectById, updateProject } from '@/services/projectService';
 import { getClients, addClient as addClientService } from '@/services/clientService';
 import { useToast } from '@/hooks/use-toast';
-import { UNINSTALL_TYPE_OPTIONS } from '@/lib/constants'; // Import from constants
+import { UNINSTALL_TYPE_OPTIONS, PROJECT_STATUS_OPTIONS } from '@/lib/constants'; // Import from constants
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,7 +40,7 @@ const projectSchema = z.object({
   projectNumber: z.string().min(1, "Número de proyecto es requerido."),
   glosa: z.string().optional(),
   date: z.date({ required_error: "Fecha de inicio es requerida." }),
-  status: z.enum(['ingresado', 'en progreso', 'completado', 'cancelado', 'pendiente aprobación'] as [ProjectStatus, ...ProjectStatus[]], {
+  status: z.enum(PROJECT_STATUS_OPTIONS, {
     required_error: "Estado es requerido."
   }),
   subtotal: z.preprocess(
@@ -417,11 +417,11 @@ export default function EditProjectPage() {
                         <SelectValue placeholder="Seleccionar estado" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="ingresado">Ingresado</SelectItem>
-                        <SelectItem value="en progreso">En Progreso</SelectItem>
-                        <SelectItem value="completado">Completado</SelectItem>
-                        <SelectItem value="cancelado">Cancelado</SelectItem>
-                        <SelectItem value="pendiente aprobación">Pendiente Aprobación</SelectItem>
+                        {PROJECT_STATUS_OPTIONS.map((statusOption) => (
+                          <SelectItem key={statusOption} value={statusOption}>
+                            {statusOption.charAt(0).toUpperCase() + statusOption.slice(1)}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   )}
