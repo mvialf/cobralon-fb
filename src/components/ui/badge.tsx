@@ -10,7 +10,7 @@ const badgeVariants = cva(
       variant: {
         default:
           "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
-        primary: // Added primary variant, same as default for direct mapping
+        primary: 
           "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
         secondary:
           "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
@@ -23,6 +23,10 @@ const badgeVariants = cva(
           "border-transparent bg-[hsl(var(--orange))] text-[hsl(var(--orange-foreground))] hover:bg-[hsl(var(--orange))]/80",
         brown:
           "border-transparent bg-[hsl(var(--brown))] text-[hsl(var(--brown-foreground))] hover:bg-[hsl(var(--brown))]/80",
+        sky:
+          "border-transparent bg-[hsl(var(--Sky))] text-[hsl(var(--Sky-foreground))] hover:bg-[hsl(var(--Sky))]/80",
+        yellow:
+          "border-transparent bg-[hsl(var(--yellow))] text-[hsl(var(--yellow-foreground))] hover:bg-[hsl(var(--yellow))]/80",
       },
     },
     defaultVariants: {

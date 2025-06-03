@@ -13,7 +13,7 @@ import { getClients } from '@/services/clientService';
 import { addPayment, getAllPayments } from '@/services/paymentService'; // Import addPayment service
 import { format as formatDate } from '@/lib/calendar-utils';
 import { es } from 'date-fns/locale';
-import { getPaymentPercentageBadgeVariant } from '@/lib/constants'; // Import the new function
+import { getPaymentPercentageBadgeVariant, getStatusBadgeVariant } from '@/lib/constants'; 
 
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,7 +29,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge'; // Import Badge component
+import { Badge } from '@/components/ui/badge'; 
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,7 +48,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { GanttChartSquare, DollarSign, FileText, SquarePen, Trash2, PlusCircle, Briefcase, Loader2, Search } from 'lucide-react';
-import PaymentModal from '@/components/payment-modal'; // Import PaymentModal
+import PaymentModal from '@/components/payment-modal'; 
 import { useToast } from '@/hooks/use-toast';
 
 // Helper to format currency (Chilean Pesos example)
@@ -299,22 +299,6 @@ export default function ProjectsPage() {
 
   const isLoading = isLoadingProjects || isLoadingClients || isLoadingAllPayments;
   const isMutating = updateProjectMutation.isPending || deleteProjectMutation.isPending || addPaymentMutation.isPending;
-
-  const getStatusBadgeVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
-    switch (status?.toLowerCase()) {
-      case 'completado':
-        return 'default'; 
-      case 'en progreso':
-        return 'secondary';
-      case 'cancelado':
-        return 'destructive';
-      case 'ingresado':
-      case 'pendiente aprobación':
-        return 'outline';
-      default:
-        return 'outline';
-    }
-  };
 
 
   return (
