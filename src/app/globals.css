@@ -48,6 +48,8 @@ body {
     --orange-foreground: 0 0% 98%; /* text-white */
     --brown: 142 69% 58%; /* bg-orange-950 */
     --brown-foreground: 0 0% 98%; /* text-white */
+    --complete: 142 71% 45%; /* bg-green-400 */
+    --complete-foreground: 0 0% 98%; /* text-white */
 
     /* Chart colors (can be adjusted if charts are used, keeping for consistency) */
     --chart-1: 12 76% 61%;
@@ -105,6 +107,9 @@ body {
     --orange-foreground: 0 0% 98%; /* dark:text-white */
     --brown: 142 69% 58%; /* dark:bg-orange-900 */
     --brown-foreground: 0 0% 98%; /* dark:text-white */
+    --complete: 142 69% 58%; /* dark:bg-green-400 */
+    --complete-foreground: 0 0% 98%; /* dark:text-white */
+
 
     /* Chart colors for dark theme */
     --chart-1: 220 70% 50%;
