@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation'; // Import useRouter
 import { useQuery, useMutation, useQueryClient as useQueryClientHook } from '@tanstack/react-query';
-import type { ProjectType } from '@/types/project';
+import type { ProjectType, ProjectStatus } from '@/types/project';
 import type { Client } from '@/types/client';
 import type { Payment, PaymentMethod } from '@/types/payment'; // Import Payment types
 import { getProjects, updateProject, deleteProject } from '@/services/projectService';
@@ -13,7 +13,8 @@ import { getClients } from '@/services/clientService';
 import { addPayment, getAllPayments } from '@/services/paymentService'; // Import addPayment service
 import { format as formatDate } from '@/lib/calendar-utils';
 import { es } from 'date-fns/locale';
-import { getPaymentPercentageBadgeVariant, getStatusBadgeVariant } from '@/lib/constants'; 
+import { getPaymentPercentageBadgeVariant, getStatusBadgeVariant, PROJECT_STATUS_OPTIONS } from '@/lib/constants'; 
+import type { ProjectStatusConstant } from '@/lib/constants';
 
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent } from '@/components/ui/card';
@@ -30,6 +31,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge'; 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,6 +58,7 @@ import {
 import { GanttChartSquare, DollarSign, FileText, SquarePen, Trash2, PlusCircle, Briefcase, Loader2, Search } from 'lucide-react';
 import PaymentModal from '@/components/payment-modal'; 
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 // Helper to format currency (Chilean Pesos example)
 const formatCurrency = (amount: number | undefined | null) => {
@@ -163,7 +172,8 @@ export default function ProjectsPage() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] }); 
-      if (!variables.projectData.hasOwnProperty('isPaid')) {
+      // Toast for status change is handled in handleStatusChange, toast for isPaid in handleToggleIsPaid
+      if (!variables.projectData.hasOwnProperty('isPaid') && !variables.projectData.hasOwnProperty('status')) {
            toast({ title: "Proyecto Actualizado", description: `El proyecto ha sido actualizado.` });
       }
     },
@@ -256,6 +266,21 @@ export default function ProjectsPage() {
     } catch (error) {
       // Error toast is handled by mutation's onError
     }
+  };
+  
+  const handleStatusChange = (projectId: string, newStatus: ProjectStatusConstant) => {
+    updateProjectMutation.mutate(
+      { projectId, projectData: { status: newStatus } },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Estado Actualizado",
+            description: `El estado del proyecto ha sido cambiado a "${newStatus}".`,
+          });
+        },
+        // onError is handled by the default mutation onError
+      }
+    );
   };
 
 
@@ -388,9 +413,32 @@ export default function ProjectsPage() {
                         <TableCell>{project.date ? formatDate(project.date, 'P', { locale: es }) : 'N/A'}</TableCell>
                         <TableCell className="text-right">{formatCurrency(project.total)}</TableCell>
                         <TableCell>
-                          <Badge variant={getStatusBadgeVariant(project.status)}>
-                            {project.status}
-                          </Badge>
+                          <Select
+                            value={project.status}
+                            onValueChange={(newStatus) => handleStatusChange(project.id, newStatus as ProjectStatusConstant)}
+                            disabled={isCurrentRowMutating}
+                          >
+                            <SelectTrigger
+                              className={cn(
+                                "h-auto p-0 border-0 bg-transparent focus:ring-0 focus:ring-offset-0 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 min-w-[120px] [&_svg]:size-3.5",
+                                // El siguiente estilo es para cuando el select está abierto
+                                "data-[state=open]:ring-1 data-[state=open]:ring-ring data-[state=open]:ring-offset-1"
+                              )}
+                              aria-label={`Estado: ${project.status}. Cambiar estado.`}
+                            >
+                              <Badge variant={getStatusBadgeVariant(project.status)} className="w-full pointer-events-none justify-center">
+                                {project.status}
+                              </Badge>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {PROJECT_STATUS_OPTIONS.map((statusOption) => (
+                                <SelectItem key={statusOption} value={statusOption}>
+                                  <Badge variant={getStatusBadgeVariant(statusOption)} className="mr-2 border !h-3 !w-3 !p-0" />
+                                  {statusOption.charAt(0).toUpperCase() + statusOption.slice(1)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </TableCell>
                         <TableCell className="text-center">
                           <Switch
@@ -412,7 +460,7 @@ export default function ProjectsPage() {
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" disabled={isCurrentRowMutating} aria-label="Más acciones">
-                                {isCurrentRowMutating && (isRowDeleting || (isRowUpdating && !updateProjectMutation.variables?.projectData.hasOwnProperty('isPaid'))) ? <Loader2 className="h-4 w-4 animate-spin" /> : <GanttChartSquare className="h-4 w-4" />}
+                                {isCurrentRowMutating && (isRowDeleting || (isRowUpdating && !updateProjectMutation.variables?.projectData.hasOwnProperty('isPaid') && !updateProjectMutation.variables?.projectData.hasOwnProperty('status'))) ? <Loader2 className="h-4 w-4 animate-spin" /> : <GanttChartSquare className="h-4 w-4" />}
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -491,3 +539,4 @@ export default function ProjectsPage() {
     </div>
   );
 }
+
