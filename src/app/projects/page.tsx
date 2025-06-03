@@ -13,6 +13,7 @@ import { getClients } from '@/services/clientService';
 import { addPayment, getAllPayments } from '@/services/paymentService'; // Import addPayment service
 import { format as formatDate } from '@/lib/calendar-utils';
 import { es } from 'date-fns/locale';
+import { getPaymentPercentageBadgeVariant } from '@/lib/constants'; // Import the new function
 
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent } from '@/components/ui/card';
@@ -62,13 +63,13 @@ const ProjectRowSkeleton = () => (
     <TableCell className="w-10 text-center"><Checkbox disabled /></TableCell>
     <TableCell><div className="h-5 w-32 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell><div className="h-5 w-24 bg-muted rounded animate-pulse"></div></TableCell>
-    <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
+    <TableCell className="text-right"><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell className="text-center"><div className="h-6 w-10 bg-muted rounded-full inline-block animate-pulse"></div></TableCell>
     <TableCell className="text-right">
       <div className="flex items-center justify-end gap-2">
-        <div className="h-5 w-20 bg-muted rounded animate-pulse"></div>
-        <div className="h-5 w-12 bg-muted rounded-full animate-pulse"></div>
+        <div className="h-5 w-20 bg-muted rounded animate-pulse"></div> {/* Amount */}
+        <div className="h-5 w-12 bg-muted rounded-full animate-pulse"></div> {/* Percentage Badge */}
       </div>
     </TableCell>
     <TableCell className="text-right space-x-2">
@@ -80,8 +81,7 @@ const ProjectRowSkeleton = () => (
 interface EnrichedProject extends ProjectType {
   clientName?: string;
   totalPayments: number;
-  totalPaymentPercentage: number; 
-  // balance will now be the dynamically calculated one.
+  totalPaymentPercentage: number;
 }
 
 
@@ -141,10 +141,8 @@ export default function ProjectsPage() {
       } else if (projectTotalValue === 0 && sumOfPaymentsForProject === 0) {
         calculatedTotalPaymentPercentage = 100; 
       } else if (projectTotalValue === 0 && sumOfPaymentsForProject > 0) {
-        // If total is 0 but payments exist (e.g. overpayment or error), show as 100%
         calculatedTotalPaymentPercentage = 100; 
       } else if (projectTotalValue === 0 && sumOfPaymentsForProject < 0) {
-        // If total is 0 and payments are negative (unlikely, but handle), show 0%
         calculatedTotalPaymentPercentage = 0;
       }
       
@@ -316,13 +314,6 @@ export default function ProjectsPage() {
       default:
         return 'outline';
     }
-  };
-
-  const getPaymentPercentageBadgeVariant = (percentage: number): "default" | "secondary" | "destructive" | "outline" => {
-    if (percentage >= 100) return 'default'; // Fully paid or overpaid (primary color)
-    if (percentage >= 70) return 'secondary'; // Mostly paid (could use a success-like color if customized)
-    if (percentage >= 30) return 'outline'; // Partially paid (could use a warning-like color if customized)
-    return 'destructive'; // Low payment (danger color)
   };
 
 
@@ -516,4 +507,3 @@ export default function ProjectsPage() {
     </div>
   );
 }
-

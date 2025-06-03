@@ -10,11 +10,19 @@ const badgeVariants = cva(
       variant: {
         default:
           "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+        primary: // Added primary variant, same as default for direct mapping
+          "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
         secondary:
           "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
         destructive:
           "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",
+        complete:
+          "border-transparent bg-[hsl(var(--complete))] text-[hsl(var(--complete-foreground))] hover:bg-[hsl(var(--complete))]/80",
+        orange:
+          "border-transparent bg-[hsl(var(--orange))] text-[hsl(var(--orange-foreground))] hover:bg-[hsl(var(--orange))]/80",
+        brown:
+          "border-transparent bg-[hsl(var(--brown))] text-[hsl(var(--brown-foreground))] hover:bg-[hsl(var(--brown))]/80",
       },
     },
     defaultVariants: {
