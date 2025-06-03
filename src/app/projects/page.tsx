@@ -64,7 +64,7 @@ const ProjectRowSkeleton = () => (
     <TableCell><div className="h-5 w-32 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell><div className="h-5 w-24 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell className="text-right"><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
-    <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
+    <TableCell><Badge><div className="h-4 w-16 bg-muted/50 rounded animate-pulse"></div></Badge></TableCell>
     <TableCell className="text-center"><div className="h-6 w-10 bg-muted rounded-full inline-block animate-pulse"></div></TableCell>
     <TableCell className="text-right">
       <div className="flex items-center justify-end gap-2">
@@ -142,15 +142,15 @@ export default function ProjectsPage() {
         calculatedTotalPaymentPercentage = 100; 
       } else if (projectTotalValue === 0 && sumOfPaymentsForProject > 0) {
         calculatedTotalPaymentPercentage = 100; 
-      } else if (projectTotalValue === 0 && sumOfPaymentsForProject < 0) {
+      } else if (projectTotalValue === 0 && sumOfPaymentsForProject < 0) { // Should not happen with valid data
         calculatedTotalPaymentPercentage = 0;
       }
       
       return {
         ...project,
         clientName,
-        balance: calculatedBalance, 
         totalPayments: sumOfPaymentsForProject,
+        balance: calculatedBalance, 
         totalPaymentPercentage: calculatedTotalPaymentPercentage,
       };
     });
@@ -224,8 +224,8 @@ export default function ProjectsPage() {
       amount: formData.amount,
       date: formData.date,
       paymentMethod: formData.paymentMethod,
-      paymentType: 'proyecto',
-      isAdjustment: false,
+      paymentType: 'proyecto', // Default payment type
+      isAdjustment: false, // Default not an adjustment
     };
     addPaymentMutation.mutate(paymentPayload);
   };
