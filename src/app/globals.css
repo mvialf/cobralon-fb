@@ -39,6 +39,16 @@ body {
 
     --radius: 0.5rem;
 
+    /* Custom colors - Light Theme */
+    --yellow: 55 97% 88%; /* bg-yellow-100 */
+    --yellow-foreground: 28 73% 26%; /* text-yellow-900 */
+    --Sky: 201 94% 86%; /* bg-Sky-200 */
+    --Sky-foreground: 204 80% 16%; /* text-Sky-950 */
+    --orange: 25 95% 53%; /* bg-orange-500 */
+    --orange-foreground: 0 0% 98%; /* text-white */
+    --brown: 142 69% 58%; /* bg-orange-950 */
+    --brown-foreground: 0 0% 98%; /* text-white */
+
     /* Chart colors (can be adjusted if charts are used, keeping for consistency) */
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
@@ -85,6 +95,16 @@ body {
     --border: 240 4.4% 26.1%; 
     --input: 240 4.4% 26.1%; 
     --ring: 217.2 91.2% 59.8%; 
+
+    /* Custom colors - Dark Theme */
+    --yellow: 55 97% 88%; /* dark:bg-yellow-100 */
+    --yellow-foreground: 28 73% 26%; /* dark:bg-yellow-900 */
+    --Sky: 201 94% 86%; /* dark:bg-Sky-200 */
+    --Sky-foreground: 204 80% 16%; /* dark:bg-Sky-950 */
+    --orange: 27 96% 61%; /* dark:bg-orange-400 */
+    --orange-foreground: 0 0% 98%; /* dark:text-white */
+    --brown: 142 69% 58%; /* dark:bg-orange-900 */
+    --brown-foreground: 0 0% 98%; /* dark:text-white */
 
     /* Chart colors for dark theme */
     --chart-1: 220 70% 50%;
