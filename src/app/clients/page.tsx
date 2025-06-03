@@ -27,8 +27,15 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"; // Removed AlertDialogTrigger as it's used inline
-import { Edit, Trash2, PlusCircle, Users, Loader2 } from 'lucide-react';
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { SquarePen, Trash2, PlusCircle, Users, Loader2, GanttChartSquare, DollarSign, FileText } from 'lucide-react';
 import ClientModal from '@/components/client-modal';
 import { useToast } from '@/hooks/use-toast';
 
@@ -38,8 +45,7 @@ const ClientRowSkeleton = () => (
     <TableCell><div className="h-5 w-32 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell><div className="h-5 w-24 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell><div className="h-5 w-40 bg-muted rounded animate-pulse"></div></TableCell>
-    <TableCell className="text-right space-x-2">
-      <div className="h-8 w-8 bg-muted rounded-full inline-block animate-pulse"></div>
+    <TableCell className="text-right">
       <div className="h-8 w-8 bg-muted rounded-full inline-block animate-pulse"></div>
     </TableCell>
   </TableRow>
@@ -95,9 +101,9 @@ export default function ClientsPage() {
       setClientToDelete(null);
       setIsDeleteDialogOpen(false);
     },
-    onError: (err: any) => { // Changed to any to check for Firebase error codes
+    onError: (err: any) => {
       let description = `No se pudo eliminar el cliente: ${err.message}`;
-      if (err.code) { // Check if it's a Firebase error with a code
+      if (err.code) {
         description += ` (Código: ${err.code})`;
       }
       toast({ title: "Error al Eliminar", description, variant: "destructive" });
@@ -169,7 +175,7 @@ export default function ClientsPage() {
             <p className="text-muted-foreground">Administra la información de tus clientes.</p>
           </div>
         </div>
-        <Button onClick={() => handleOpenModal()} disabled={isMutating}>
+        <Button onClick={() => handleOpenModal()} disabled={isMutating && addClientMutation.isPending && !selectedClient}>
           {isMutating && addClientMutation.isPending && !selectedClient ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
           Nuevo Cliente
         </Button>
@@ -192,7 +198,7 @@ export default function ClientsPage() {
                     <TableHead className="w-[250px]">Nombre</TableHead>
                     <TableHead className="w-[150px]">Teléfono</TableHead>
                     <TableHead>Correo Electrónico</TableHead>
-                    <TableHead className="text-right w-[150px]">Acciones</TableHead>
+                    <TableHead className="text-right w-[100px]">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -208,25 +214,64 @@ export default function ClientsPage() {
                     <TableHead className="w-[250px]">Nombre</TableHead>
                     <TableHead className="w-[150px]">Teléfono</TableHead>
                     <TableHead>Correo Electrónico</TableHead>
-                    <TableHead className="text-right w-[150px]">Acciones</TableHead>
+                    <TableHead className="text-right w-[100px]">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredClients.map((client) => (
-                    <TableRow key={client.id} className={isMutating && (updateClientMutation.variables?.clientId === client.id || (deleteClientMutation.isPending && clientToDelete?.id === client.id)) ? 'opacity-50' : ''}>
-                      <TableCell className="font-medium">{client.name}</TableCell>
-                      <TableCell>{client.phone}</TableCell>
-                      <TableCell>{client.email}</TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button variant="outline" size="icon" onClick={() => handleOpenModal(client)} aria-label="Editar cliente" disabled={isMutating}>
-                          {isMutating && updateClientMutation.variables?.clientId === client.id && updateClientMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
-                        </Button>
-                        <Button variant="destructive" size="icon" onClick={() => handleDeleteClientInitiate(client)} aria-label="Eliminar cliente" disabled={isMutating && clientToDelete?.id === client.id && deleteClientMutation.isPending}>
-                           {isMutating && clientToDelete?.id === client.id && deleteClientMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredClients.map((client) => {
+                    const isCurrentRowEditing = updateClientMutation.isPending && updateClientMutation.variables?.clientId === client.id;
+                    const isCurrentRowDeleting = deleteClientMutation.isPending && clientToDelete?.id === client.id;
+                    const isCurrentRowMutating = isCurrentRowEditing || isCurrentRowDeleting;
+
+                    return (
+                      <TableRow 
+                        key={client.id} 
+                        className={isCurrentRowMutating ? 'opacity-50' : ''}
+                      >
+                        <TableCell className="font-medium">{client.name}</TableCell>
+                        <TableCell>{client.phone}</TableCell>
+                        <TableCell>{client.email}</TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" disabled={isCurrentRowMutating} aria-label="Más acciones para el cliente">
+                                {isCurrentRowMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <GanttChartSquare className="h-4 w-4" />}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem 
+                                onSelect={() => toast({ title: "Próximamente", description: "La función para registrar pagos para clientes estará disponible pronto." })}
+                                disabled={isCurrentRowMutating}
+                              >
+                                <DollarSign className="mr-2 h-4 w-4" />
+                                <span>Registrar Pago</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onSelect={() => toast({ title: "Próximamente", description: "La función de estado de cuenta para clientes estará disponible pronto." })}
+                                disabled={isCurrentRowMutating}
+                              >
+                                <FileText className="mr-2 h-4 w-4" />
+                                <span>Estado de cuenta</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onSelect={() => handleOpenModal(client)} disabled={isCurrentRowMutating}>
+                                <SquarePen className="mr-2 h-4 w-4" />
+                                <span>Editar cliente</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onSelect={() => handleDeleteClientInitiate(client)} 
+                                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                                disabled={isCurrentRowDeleting || isCurrentRowEditing} // Disable if editing or already deleting
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                <span>Eliminar cliente</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             ) : (
