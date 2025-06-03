@@ -65,7 +65,12 @@ const ProjectRowSkeleton = () => (
     <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
     <TableCell className="text-center"><div className="h-6 w-10 bg-muted rounded-full inline-block animate-pulse"></div></TableCell>
-    <TableCell><div className="h-5 w-20 bg-muted rounded animate-pulse"></div></TableCell>
+    <TableCell className="text-right">
+      <div className="flex items-center justify-end gap-2">
+        <div className="h-5 w-20 bg-muted rounded animate-pulse"></div>
+        <div className="h-5 w-12 bg-muted rounded-full animate-pulse"></div>
+      </div>
+    </TableCell>
     <TableCell className="text-right space-x-2">
       <div className="h-8 w-8 bg-muted rounded-full inline-block animate-pulse"></div>
     </TableCell>
@@ -136,8 +141,10 @@ export default function ProjectsPage() {
       } else if (projectTotalValue === 0 && sumOfPaymentsForProject === 0) {
         calculatedTotalPaymentPercentage = 100; 
       } else if (projectTotalValue === 0 && sumOfPaymentsForProject > 0) {
+        // If total is 0 but payments exist (e.g. overpayment or error), show as 100%
         calculatedTotalPaymentPercentage = 100; 
       } else if (projectTotalValue === 0 && sumOfPaymentsForProject < 0) {
+        // If total is 0 and payments are negative (unlikely, but handle), show 0%
         calculatedTotalPaymentPercentage = 0;
       }
       
@@ -296,9 +303,9 @@ export default function ProjectsPage() {
   const isMutating = updateProjectMutation.isPending || deleteProjectMutation.isPending || addPaymentMutation.isPending;
 
   const getStatusBadgeVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'completado':
-        return 'default'; // Primary color (often blue or a success-like color depending on theme)
+        return 'default'; 
       case 'en progreso':
         return 'secondary';
       case 'cancelado':
@@ -310,6 +317,14 @@ export default function ProjectsPage() {
         return 'outline';
     }
   };
+
+  const getPaymentPercentageBadgeVariant = (percentage: number): "default" | "secondary" | "destructive" | "outline" => {
+    if (percentage >= 100) return 'default'; // Fully paid or overpaid (primary color)
+    if (percentage >= 70) return 'secondary'; // Mostly paid (could use a success-like color if customized)
+    if (percentage >= 30) return 'outline'; // Partially paid (could use a warning-like color if customized)
+    return 'destructive'; // Low payment (danger color)
+  };
+
 
   return (
     <div className="flex flex-col h-full p-4 md:p-6 lg:p-8">
@@ -410,7 +425,14 @@ export default function ProjectsPage() {
                             aria-label={project.isPaid ? "Proyecto marcado como pagado" : "Marcar proyecto como pagado"}
                           />
                         </TableCell>
-                        <TableCell className="text-right">{formatCurrency(project.totalPayments)}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <span>{formatCurrency(project.totalPayments)}</span>
+                            <Badge variant={getPaymentPercentageBadgeVariant(project.totalPaymentPercentage)}>
+                              {project.totalPaymentPercentage.toFixed(0)}%
+                            </Badge>
+                          </div>
+                        </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
