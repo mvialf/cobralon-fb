@@ -20,7 +20,7 @@ export interface AfterSales {
   resolutionDate?: Date; // Date the issue was resolved or closed
   createdAt?: Date;
   updatedAt?: Date;
-  status?: AfterSalesStatus;
+  afterSalesStatus?: AfterSalesStatus;
   assignedTo?: string; // User/technician assigned
   notes?: string; // Internal notes
 }

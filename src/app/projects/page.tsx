@@ -256,12 +256,12 @@ export default function ProjectsPage() {
     router.push(`/projects/${projectId}/edit`);
   };
 
-  const handleToggleIsPaid = async (projectId: string, newIsPaidState: boolean) => {
+  const handleToggleCollect = async (projectId: string, newCollectState: boolean) => {
     try {
-      await updateProjectMutation.mutateAsync({ projectId, projectData: { isPaid: newIsPaidState } });
+      await updateProjectMutation.mutateAsync({ projectId, projectData: { collect: newCollectState } });
       toast({
-        title: "Estado de Pago Actualizado",
-        description: `El proyecto ha sido marcado como ${newIsPaidState ? 'pagado' : 'no pagado'}.`,
+        title: "Estado de Cobro Actualizado",
+        description: `El proyecto ha sido marcado para ${newCollectState ? 'cobrar' : 'no cobrar'}.`,
       });
     } catch (error) {
       // Error toast is handled by mutation's onError
@@ -374,7 +374,7 @@ export default function ProjectsPage() {
                   <TableHead>F. Inicio</TableHead>
                   <TableHead className="text-right">V. Total</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead className="text-center">Pagado</TableHead>
+                  <TableHead className="text-center">Cobrar</TableHead>
                   <TableHead className="text-right">Abonos</TableHead>
                   <TableHead className="text-right w-[100px]">Acciones</TableHead>
                 </TableRow>
@@ -442,10 +442,10 @@ export default function ProjectsPage() {
                         </TableCell>
                         <TableCell className="text-center">
                           <Switch
-                            checked={project.isPaid || false}
-                            onCheckedChange={(newCheckedState) => handleToggleIsPaid(project.id, newCheckedState)}
-                            disabled={isRowUpdating && updateProjectMutation.variables?.projectData.hasOwnProperty('isPaid')}
-                            aria-label={project.isPaid ? "Proyecto marcado como pagado" : "Marcar proyecto como pagado"}
+                            checked={project.collect || false}
+                            onCheckedChange={(newCheckedState) => handleToggleCollect(project.id, newCheckedState)}
+                            disabled={(isRowUpdating && updateProjectMutation.variables?.projectData.hasOwnProperty('collect')) || project.isPaid === true}
+                            aria-label={project.collect ? "Proyecto marcado para cobrar" : "Marcar proyecto para cobrar"}
                           />
                         </TableCell>
                         <TableCell className="text-right">
