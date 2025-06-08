@@ -7,6 +7,7 @@ export interface ProjectType {
   id: string;
   projectNumber: string;
   clientId: string; // ID of the related client document in the 'clients' collection
+  clientName?: string; // Added dynamically for display purposes
   description?: string;
   date: Date; // Start date of the project
   subtotal: number;

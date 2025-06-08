@@ -33,13 +33,22 @@ const clientFromDoc = (docSnapshot: any): Client => {
   return {
     id: docSnapshot.id,
     name: data.name,
-    phone: data.phone === null ? null : (data.phone || undefined), // Explicitly handle null
-    email: data.email === null ? null : (data.email || undefined), // Explicitly handle null
+    phone: data.phone === null ? undefined : (data.phone || undefined),
+    email: data.email === null ? undefined : (data.email || undefined),
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
     updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(),
   };
 };
 
+
+export const getClientById = async (clientId: string): Promise<Client | null> => {
+  const clientDocRef = doc(db, CLIENTS_COLLECTION, clientId);
+  const docSnap = await getDoc(clientDocRef);
+  if (docSnap.exists()) {
+    return clientFromDoc(docSnap);
+  }
+  return null;
+};
 
 export const getClients = async (): Promise<Client[]> => {
   const clientsCollectionRef = collection(db, CLIENTS_COLLECTION);
@@ -70,8 +79,8 @@ export const addClient = async (clientData: ClientImportData): Promise<Client> =
   const dataToSave: Omit<ClientDocument, 'id'> = {
     name: clientData.name,
     // Firestore stores null as null, undefined means field is omitted
-    phone: clientData.hasOwnProperty('phone') ? clientData.phone : undefined,
-    email: clientData.hasOwnProperty('email') ? clientData.email : undefined,
+    phone: clientData.hasOwnProperty('phone') ? (clientData.phone === null ? undefined : clientData.phone) : undefined,
+    email: clientData.hasOwnProperty('email') ? (clientData.email === null ? undefined : clientData.email) : undefined,
     createdAt: createdAtTimestamp,
     updatedAt: serverTimestamp() as Timestamp,
   };

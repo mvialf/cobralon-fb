@@ -2,6 +2,7 @@
 // src/app/clients/page.tsx
 "use client";
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Client } from '@/types/client';
 import { getClients, addClient, updateClient, deleteClient } from '@/services/clientService';
@@ -15,7 +16,7 @@ import {
   TableRow,
   TableHead,
   TableCell,
-} from '@/components/ui/table';
+} from '@/components/table/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -54,6 +55,7 @@ const ClientRowSkeleton = () => (
 export default function ClientsPage() {
   const { toast } = useToast();
   const queryClientHook = useQueryClient();
+  const router = useRouter();
 
   const [filterText, setFilterText] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -240,7 +242,7 @@ export default function ClientsPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem 
-                                onSelect={() => toast({ title: "Próximamente", description: "La función para registrar pagos para clientes estará disponible pronto." })}
+                                onSelect={() => router.push(`/clients/newPayment/${client.id}`)}
                                 disabled={isCurrentRowMutating}
                               >
                                 <DollarSign className="mr-2 h-4 w-4" />

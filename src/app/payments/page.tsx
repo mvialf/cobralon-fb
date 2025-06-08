@@ -22,7 +22,7 @@ import {
   TableRow,
   TableHead,
   TableCell,
-} from '@/components/ui/table';
+} from '@/components/table/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {

@@ -5,25 +5,21 @@ export const UNINSTALL_TYPE_OPTIONS = ["Aluminio", "Madera", "Fierro", "PVC", "A
 
 export const PROJECT_STATUS_OPTIONS = [
   'ingresado',
-  'pendiente aprobación',
   'programar',
   'fabricación',
   'montaje',
   'sello',
   'continuación',
   'complicación',
-  'en progreso',
   'completado',
-  'cancelado',
 ] as const;
 
 export type ProjectStatusConstant = typeof PROJECT_STATUS_OPTIONS[number];
 
-export const PAYMENT_METHODS = ['transferencia', 'tarjeta de crédito', 'cheque', 'tarjeta de débito', 'efectivo', 'otro'] as const;
+export const PAYMENT_METHODS = ['transferencia', 'tarjeta de crédito', 'cheque', 'tarjeta de débito', 'efectivo'] as const;
 export const PAYMENT_TYPES = [
   'proyecto',
   'cliente',
-  'otro'
 ] as const;
 
 export const getPaymentPercentageBadgeVariant = (percentage: number): "complete" | "orange" | "brown" | "primary" | "destructive" => {
@@ -35,7 +31,7 @@ export const getPaymentPercentageBadgeVariant = (percentage: number): "complete"
   return 'destructive';
 };
 
-export const getStatusBadgeVariant = (status: string | undefined): 'sky' | 'complete' | 'orange' | 'brown' | 'primary' | 'yellow' | 'default' | 'secondary' | 'destructive' | 'outline' => {
+export const getStatusBadgeVariant = (status: string | undefined): 'sky' | 'complete' | 'orange' | 'brown' | 'primary' | 'yellow' | 'default' | 'accent' | 'destructive' | 'outline' => {
     const lowerStatus = status?.toLowerCase();
     switch (lowerStatus) {
       case 'completado': return 'complete';
@@ -45,12 +41,9 @@ export const getStatusBadgeVariant = (status: string | undefined): 'sky' | 'comp
       case 'montaje': return 'orange';
       case 'programar': return 'primary';
       case 'fabricación': return 'yellow';
-      case 'ingresado': return 'secondary';
-      case 'en progreso': return 'outline'; // Consider a more distinct color like 'blue' if 'primary' is not used for 'programar'
-      case 'cancelado': return 'destructive';
-      case 'pendiente aprobación': return 'primary'; 
+      case 'ingresado': return 'accent';
       default:
-        return 'outline'; 
+        return 'accent'; 
     }
 };
 

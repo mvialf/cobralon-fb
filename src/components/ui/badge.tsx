@@ -28,6 +28,8 @@ const badgeVariants = cva(
           "border-transparent bg-[hsl(var(--Sky))] text-[hsl(var(--Sky-foreground))] hover:bg-[hsl(var(--Sky))]/80",
         yellow:
           "border-transparent bg-[hsl(var(--yellow))] text-[hsl(var(--yellow-foreground))] hover:bg-[hsl(var(--yellow))]/80",
+        accent:
+          "border-transparent bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] hover:bg-[hsl(var(--accent))]/80",
       },
     },
     defaultVariants: {

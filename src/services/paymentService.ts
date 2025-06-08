@@ -43,9 +43,13 @@ export const getAllPayments = async (): Promise<Payment[]> => {
 
 export const getPaymentsForProject = async (projectId: string): Promise<Payment[]> => {
   const paymentsCollectionRef = collection(db, PAYMENTS_COLLECTION);
-  const q = query(paymentsCollectionRef, where('projectId', '==', projectId), orderBy('date', 'desc'));
+  // Eliminamos el orderBy para evitar necesitar un índice compuesto
+  const q = query(paymentsCollectionRef, where('projectId', '==', projectId));
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(paymentFromDoc);
+  // Ordenamos en memoria después de obtener los resultados
+  return querySnapshot.docs
+    .map(paymentFromDoc)
+    .sort((a, b) => b.date.getTime() - a.date.getTime()); // Orden descendente por fecha
 };
 
 export const getPaymentById = async (paymentId: string): Promise<Payment | null> => {

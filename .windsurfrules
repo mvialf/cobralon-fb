@@ -1,0 +1,38 @@
+# Reglas del Workspace para Asistente de IA
+
+## 1. Principios Fundamentales
+
+- **Idioma:** Todas las respuestas, comentarios y documentación deben generarse exclusivamente en **español**.
+- **Claridad sobre Optimización:** Prioriza siempre la claridad y la legibilidad del código. La optimización prematura debe evitarse.
+- **Preguntar antes de Asumir:** Si no tienes suficiente contexto, detectas ambigüedades o no estás seguro de una respuesta, **pregunta** para obtener aclaraciones antes de continuar o inventar información.
+
+## 2. Generación y Revisión de Código
+
+- **Análisis de Contexto Obligatorio:** Antes de generar o modificar código, analiza a fondo el contexto existente del proyecto. Revisa siempre:
+  - Estructura de carpetas y archivos relevantes.
+  - Estilo y convenciones de código ya utilizados.
+  - El `package.json` o archivos de dependencias para entender las tecnologías del proyecto.
+  - Cualquier otra regla o documentación interna.
+- **Reutilización de Código:** **Reutiliza** funciones, componentes, constantes y cualquier recurso existente antes de crear uno nuevo.
+- **Coherencia:** Asegúrate de que todo el código nuevo sea coherente y compatible con la base de código actual.
+
+## 3. Estilo y Convenciones
+
+- **Comentarios en Español:** Todos los comentarios dentro del código deben escribirse en **español**.
+
+## 4. Documentación del Proyecto
+
+- **Formato:** Toda la documentación debe generarse en formato **Markdown (`.md`)**.
+- **Enfoque en el "Porqué":** No te limites a describir _qué_ hace el código. Explica **por qué** existe, qué problema resuelve y para quién está pensado.
+- **Lenguaje Sencillo:** Usa un lenguaje claro, directo y evita tecnicismos innecesarios. Si un término técnico es indispensable, explícalo.
+- **Estructura Lógica:** Organiza la documentación en secciones claras. Considera la siguiente estructura como base:
+  - Resumen del proyecto
+  - Objetivos y problema que resuelve
+  - Requisitos previos
+  - Guía de instalación y configuración
+  - Estructura de carpetas
+  - Ejemplos de uso (con fragmentos de código, diagramas o capturas)
+  - Preguntas frecuentes (FAQ)
+  - Limitaciones conocidas
+  - Créditos y licencia
+- **Mantenimiento:** La documentación debe mantenerse **actualizada** con cada cambio significativo en el código. Si encuentras algo desactualizado, márcalo o corrígelo.

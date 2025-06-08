@@ -37,12 +37,19 @@ export const getProjects = async (clientId?: string): Promise<ProjectType[]> => 
   const projectsCollectionRef = collection(db, PROJECTS_COLLECTION);
   let q;
   if (clientId) {
-    q = query(projectsCollectionRef, where('clientId', '==', clientId), orderBy('date', 'desc'));
+    // Eliminar orderBy para evitar necesitar índice compuesto
+    q = query(projectsCollectionRef, where('clientId', '==', clientId));
   } else {
-    q = query(projectsCollectionRef, orderBy('date', 'desc'));
+    q = query(projectsCollectionRef);
   }
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(projectFromDoc);
+  const projects = querySnapshot.docs.map(projectFromDoc);
+  
+  // Ordenar los proyectos en memoria
+  return projects.sort((a, b) => {
+    // Ordenamiento descendente por fecha
+    return b.date.getTime() - a.date.getTime();
+  });
 };
 
 export const getProjectById = async (projectId: string): Promise<ProjectType | null> => {
@@ -54,21 +61,24 @@ export const getProjectById = async (projectId: string): Promise<ProjectType | n
   return null;
 };
 
-export const addProject = async (projectData: ProjectImportData | Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt' | 'total' | 'balance'>): Promise<ProjectType> => {
+export const addProject = async (projectData: ProjectImportData | Omit<ProjectType, 'id' | 'updatedAt' | 'total' | 'balance'>): Promise<ProjectType> => {
   const projectsCollectionRef = collection(db, PROJECTS_COLLECTION);
 
   let createdAtTimestamp: Timestamp;
-  if (projectData.createdAt) {
+  // Verificar si createdAt existe en los datos antes de intentar acceder
+  if ('createdAt' in projectData && projectData.createdAt) {
     try {
       const date = typeof projectData.createdAt === 'string' ? new Date(projectData.createdAt) : projectData.createdAt;
-      if (isNaN(date.getTime())) {
-        console.warn(`Invalid createdAt date provided for project ${projectData.projectNumber}. Using server timestamp. Value: ${projectData.createdAt}`);
+      if (date instanceof Date && isNaN(date.getTime())) {
+        console.warn(`Invalid createdAt date provided for project ${projectData.projectNumber}. Using server timestamp.`);
         createdAtTimestamp = serverTimestamp() as Timestamp;
-      } else {
+      } else if (date instanceof Date) {
         createdAtTimestamp = Timestamp.fromDate(date);
+      } else {
+        createdAtTimestamp = serverTimestamp() as Timestamp;
       }
     } catch (e) {
-      console.warn(`Error parsing createdAt date for project ${projectData.projectNumber}. Using server timestamp. Value: ${projectData.createdAt}`, e);
+      console.warn(`Error parsing createdAt date for project ${projectData.projectNumber}. Using server timestamp.`, e);
       createdAtTimestamp = serverTimestamp() as Timestamp;
     }
   } else {
@@ -93,7 +103,7 @@ export const addProject = async (projectData: ProjectImportData | Omit<ProjectTy
     total: total,
     balance: balance,
     status: restOfProjectData.status,
-    collect: restOfProjectData.collect, 
+    collect: restOfProjectData.collect === undefined ? false : restOfProjectData.collect, // Default to false
     isPaid: restOfProjectData.isPaid === undefined ? false : restOfProjectData.isPaid, // Default to false
     createdAt: createdAtTimestamp,
     updatedAt: serverTimestamp() as Timestamp,
@@ -122,7 +132,7 @@ export const addProject = async (projectData: ProjectImportData | Omit<ProjectTy
 };
 
 
-export const updateProject = async (projectId: string, projectData: Partial<Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> => {
+export const updateProject = async (projectId: string, projectData: Partial<Omit<ProjectType, 'id' | 'updatedAt'>>): Promise<void> => {
   const projectDocRef = doc(db, PROJECTS_COLLECTION, projectId);
   
   const dataToUpdate: Partial<ProjectDocument> = {};
@@ -135,10 +145,18 @@ export const updateProject = async (projectId: string, projectData: Partial<Omit
   if (projectData.date) {
      try {
         // Ensure date is converted to Timestamp if it's not already one
-        if (projectData.date instanceof Date || typeof projectData.date === 'string' || typeof projectData.date === 'number') {
-             dataToUpdate.date = Timestamp.fromDate(new Date(projectData.date));
-        } else if (projectData.date instanceof Timestamp) {
-            dataToUpdate.date = projectData.date; // Already a timestamp
+        if (
+          typeof projectData.date === 'object' && projectData.date instanceof Date || 
+          typeof projectData.date === 'string' || 
+          typeof projectData.date === 'number'
+        ) {
+            dataToUpdate.date = Timestamp.fromDate(new Date(projectData.date));
+        } else if (
+          typeof projectData.date === 'object' && 
+          'seconds' in projectData.date && 
+          'nanoseconds' in projectData.date
+        ) {
+            dataToUpdate.date = projectData.date as Timestamp; // It's likely a Timestamp
         }
     } catch (e) {
         console.error("Invalid date format for project update:", projectData.date, e);

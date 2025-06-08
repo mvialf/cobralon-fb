@@ -6,12 +6,13 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Briefcase, CalendarDays, Settings, Users, Loader2, DollarSign } from 'lucide-react'; // Added DollarSign
+import { Briefcase, CalendarDays, Settings, Users, Loader2, DollarSign, LineChart } from 'lucide-react'; // Added LineChart
 import { useState, useEffect } from 'react';
 import { ThemeProvider } from "next-themes";
 
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
+import { HeaderNav } from '@/components/ui/headernav';
 import {
   SidebarProvider,
   Sidebar,
@@ -60,7 +61,7 @@ export default function RootLayout({
   if (!isMounted) {
     return (
       <html lang="es" suppressHydrationWarning>
-        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
           <div className="flex flex-col h-screen items-center justify-center bg-background text-foreground">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
             <p className="mt-4 text-muted-foreground">Cargando aplicación...</p>
@@ -72,7 +73,7 @@ export default function RootLayout({
 
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider
             attribute="class"
@@ -80,8 +81,9 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
+            <HeaderNav />
             <SidebarProvider>
-              <Sidebar collapsible="icon">
+              <Sidebar collapsible="icon" className="pt-16">
                 <SidebarHeader className="p-4">
                   <Link href="/" className="flex items-center gap-2" title="CalReact Home">
                     <CalendarDays className="h-7 w-7 text-primary flex-shrink-0" />
@@ -92,6 +94,18 @@ export default function RootLayout({
                 </SidebarHeader>
                 <SidebarContent>
                   <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={pathname === '/dashboard' || pathname === '/'}
+                        tooltip={{children: "Dashboard", side:"right"}}
+                      >
+                        <Link href="/dashboard">
+                          <LineChart />
+                          <span>Dashboard</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
@@ -107,10 +121,10 @@ export default function RootLayout({
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
-                        isActive={pathname === '/'}
+                        isActive={pathname === '/calendar'}
                         tooltip={{children: "Calendario", side:"right"}}
                       >
-                        <Link href="/">
+                        <Link href="/calendar">
                           <CalendarDays />
                           <span>Calendario</span>
                         </Link>
@@ -161,7 +175,7 @@ export default function RootLayout({
                 </SidebarFooter>
               </Sidebar>
 
-              <SidebarInset>
+              <SidebarInset className="pt-16">
                 {children}
               </SidebarInset>
             </SidebarProvider>

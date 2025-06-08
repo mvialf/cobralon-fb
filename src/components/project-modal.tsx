@@ -345,8 +345,14 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose, onSave, pr
           </div>
 
           <div className="flex items-center space-x-2">
-            <Switch id="collect-modal" name="collect" checked={project.collect} onCheckedChange={(checked) => handleSwitchChange('collect', checked)} />
-            <Label htmlFor="collect-modal">¿Retirar Materiales? <span className="text-destructive">*</span></Label>
+            <Switch 
+              id="collect-modal" 
+              name="collect" 
+              checked={project.collect || false} 
+              onCheckedChange={(checked) => handleSwitchChange('collect', checked)} 
+              disabled={project.isPaid || false} // Deshabilitar si el proyecto está pagado
+            />
+            <Label htmlFor="collect-modal">Marcar para Cobrar</Label>
           </div>
 
           <div className="flex items-center space-x-2">
