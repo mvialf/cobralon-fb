@@ -17,32 +17,25 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { ProjectType } from '@/types/project';
-import { POSSIBLE_PAYMENT_METHODS, type PaymentMethod } from '@/types/payment';
+import { PAYMENT_METHODS, type PaymentMethod } from '@/constants/payment';
 import { useToast } from '@/hooks/use-toast';
-import { format as formatDateFns, parseISO } from 'date-fns';
+import { formatDateForInput } from '@/utils/date-helpers';
 
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: { amount: number; date: Date; paymentMethod: PaymentMethod }) => void;
+  onSave: (data: { amount: number; date: Date; paymentMethod: PaymentMethod; installments?: number }) => void;
   project: ProjectType | null;
+  clientDisplay: string;
 }
 
-const formatDateForInput = (date: Date | string | undefined): string => {
-  if (!date) return '';
-  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
-  try {
-    const d = typeof date === 'string' ? parseISO(date) : date;
-    return formatDateFns(d, 'yyyy-MM-dd');
-  } catch (error) {
-    return '';
-  }
-};
 
-const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSave, project }) => {
+
+const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSave, project, clientDisplay }) => {
   const [amount, setAmount] = useState<string>('');
   const [dateString, setDateString] = useState<string>(formatDateForInput(new Date()));
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('');
+  const [installments, setInstallments] = useState<string>('1');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -51,6 +44,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSave, pr
       setAmount('');
       setDateString(formatDateForInput(new Date()));
       setPaymentMethod('');
+      setInstallments('1');
     }
   }, [isOpen, project]);
 
@@ -78,8 +72,20 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSave, pr
         toast({ title: "Error", description: "No se ha seleccionado un proyecto.", variant: "destructive" });
         return;
     }
-
-    onSave({ amount: numericAmount, date: paymentDate, paymentMethod });
+    
+    // Validar las cuotas si el método de pago es tarjeta de crédito
+    if (paymentMethod === 'tarjeta de crédito') {
+      const numInstallments = parseInt(installments, 10);
+      if (isNaN(numInstallments) || numInstallments < 1) {
+        toast({ title: "Error de Validación", description: "El número de cuotas debe ser mayor o igual a 1.", variant: "destructive" });
+        return;
+      }
+      // Incluir cuotas en los datos a guardar
+      onSave({ amount: numericAmount, date: paymentDate, paymentMethod, installments: numInstallments });
+    } else {
+      // No incluir cuotas para otros métodos de pago
+      onSave({ amount: numericAmount, date: paymentDate, paymentMethod });
+    }
   };
 
   const projectDisplayName = project ? `${project.projectNumber}${project.glosa ? ` - ${project.glosa}` : ''}` : 'Desconocido';
@@ -89,15 +95,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSave, pr
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Registrar Pago de Proyecto</DialogTitle>
-          <DialogDescription>
-            Ingresa los detalles del pago para el proyecto.
-          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSave}>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 pb-4 pt-0">
             <div className="space-y-1">
               <Label className="text-sm text-muted-foreground">Proyecto</Label>
-              <p className="font-semibold text-foreground">{projectDisplayName}</p>
+              <p className="font-semibold text-foreground">{project?.projectNumber}</p>
+              <p className="font-semibold text-foreground">{clientDisplay}</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -127,19 +131,41 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSave, pr
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="paymentMethod-modal">Medio de Pago <span className="text-destructive">*</span></Label>
-              <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}>
-                <SelectTrigger id="paymentMethod-modal">
-                  <SelectValue placeholder="Seleccionar medio de pago" />
-                </SelectTrigger>
-                <SelectContent>
-                  {POSSIBLE_PAYMENT_METHODS.map(method => (
-                    <SelectItem key={method} value={method}>
-                      {method.charAt(0).toUpperCase() + method.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-4">
+                <div className="flex-grow space-y-1.5">
+                  <Label htmlFor="paymentMethod-modal">Medio de Pago <span className="text-destructive">*</span></Label>
+                  <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}>
+                    <SelectTrigger id="paymentMethod-modal">
+                      <SelectValue placeholder="Seleccionar medio de pago" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_METHODS.map(method => (
+                        <SelectItem key={method} value={method}>
+                          {method.charAt(0).toUpperCase() + method.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Campo de cuotas condicionalmente renderizado */}
+                {paymentMethod === 'tarjeta de crédito' && (
+                  <div className="w-24 space-y-1.5">
+                    <Label htmlFor="installments-modal">Cuotas <span className="text-destructive">*</span></Label>
+                    <Input
+                      id="installments-modal"
+                      type="number"
+                      placeholder="1"
+                      min="1"
+                      step="1"
+                      value={installments}
+                      onChange={(e) => setInstallments(e.target.value)}
+                      className="text-right"
+                      required
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <DialogFooter className="mt-2">

@@ -1,6 +1,8 @@
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
+/**
+ * ARCHIVO OBSOLETO
+ * Las funciones de este archivo han sido migradas a módulos especializados en la carpeta src/utils/
+ * - La función cn ha sido migrada a src/utils/tailwind-helpers.ts
+ */
 
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
-}
+// Re-exportaciones para mantener compatibilidad con código existente
+export { cn } from "@/utils/tailwind-helpers";

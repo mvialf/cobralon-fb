@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { GanttChartSquare, DollarSign, FileText, SquarePen, Trash2, PlusCircle, Briefcase, Loader2, Search } from 'lucide-react';
 import PaymentModal from '@/components/payment-modal'; 
+import AccountStatementDialog from '@/components/account-statement-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -106,6 +107,10 @@ export default function ProjectsPage() {
   
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedProjectForPayment, setSelectedProjectForPayment] = useState<ProjectType | null>(null);
+
+  // Estado para manejar la apertura del modal de estado de cuenta
+  const [isAccountStatementOpen, setIsAccountStatementOpen] = useState(false);
+  const [selectedProjectForAccountStatement, setSelectedProjectForAccountStatement] = useState<ProjectType | null>(null);
 
 
   const { data: projects = [], isLoading: isLoadingProjects, isError: isErrorProjects, error: errorProjects } = useQuery<ProjectType[], Error>({
@@ -204,7 +209,7 @@ export default function ProjectsPage() {
   });
 
   const addPaymentMutation = useMutation({
-    mutationFn: (paymentData: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>) => addPayment(paymentData),
+    mutationFn: (paymentData: Omit<Payment, 'id' | 'updatedAt'>) => addPayment(paymentData),
     onSuccess: (newPayment) => {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['projects'] }); 
@@ -223,19 +228,27 @@ export default function ProjectsPage() {
     setIsPaymentModalOpen(true);
   };
 
+  // Función para abrir el diálogo de estado de cuenta
+  const handleOpenAccountStatement = (project: ProjectType) => {
+    const projectForDialog = enrichedProjects.find(ep => ep.id === project.id) || project;
+    setSelectedProjectForAccountStatement(projectForDialog);
+    setIsAccountStatementOpen(true);
+  };
+
   const handleSavePayment = (formData: { amount: number; date: Date; paymentMethod: PaymentMethod }) => {
     if (!selectedProjectForPayment) {
       toast({ title: "Error", description: "No hay un proyecto seleccionado para el pago.", variant: "destructive" });
       return;
     }
 
-    const paymentPayload: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'> = {
+    const paymentPayload: Omit<Payment, 'id' | 'updatedAt'> = {
       projectId: selectedProjectForPayment.id,
       amount: formData.amount,
       date: formData.date,
       paymentMethod: formData.paymentMethod,
-      paymentType: 'proyecto', // Default payment type
-      isAdjustment: false, // Default not an adjustment
+      paymentType: 'proyecto', // Tipo de pago por defecto
+      isAdjustment: false, // No es un ajuste por defecto
+      createdAt: new Date(), // Añadir createdAt como requiere la interfaz Payment
     };
     addPaymentMutation.mutate(paymentPayload);
   };
@@ -468,7 +481,7 @@ export default function ProjectsPage() {
                                 <DollarSign className="mr-2 h-4 w-4" />
                                 <span>Registrar Pago</span>
                               </DropdownMenuItem>
-                              <DropdownMenuItem onSelect={() => console.log("Estado de cuenta para:", project.projectNumber)} disabled={isMutating}>
+                              <DropdownMenuItem onSelect={() => handleOpenAccountStatement(project)} disabled={isMutating}>
                                 <FileText className="mr-2 h-4 w-4" />
                                 <span>Estado de cuenta</span>
                               </DropdownMenuItem>
@@ -510,6 +523,25 @@ export default function ProjectsPage() {
         }}
         onSave={handleSavePayment}
         project={selectedProjectForPayment}
+        clientDisplay={
+          selectedProjectForPayment 
+            ? `${selectedProjectForPayment.clientName || 'Cliente no encontrado'}${selectedProjectForPayment.glosa?.trim() ? ` - ${selectedProjectForPayment.glosa}` : ''}`
+            : 'Cliente no disponible'
+        }
+      />
+
+      <AccountStatementDialog
+        isOpen={isAccountStatementOpen}
+        onClose={() => {
+          setIsAccountStatementOpen(false);
+          setSelectedProjectForAccountStatement(null);
+        }}
+        project={selectedProjectForAccountStatement}
+        clientName={
+          selectedProjectForAccountStatement 
+            ? `${selectedProjectForAccountStatement.clientName || 'Cliente no encontrado'}${selectedProjectForAccountStatement.glosa?.trim() ? ` - ${selectedProjectForAccountStatement.glosa}` : ''}`
+            : 'Cliente no disponible'
+        }
       />
 
       {projectToDelete && (

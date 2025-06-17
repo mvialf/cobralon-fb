@@ -14,8 +14,10 @@ import {
   serverTimestamp,
   getDoc,
   writeBatch,
-  setDoc
+  setDoc,
+  collectionGroup
 } from 'firebase/firestore';
+import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { db } from '@/lib/firebase/client';
 import type { Payment, PaymentDocument, PaymentImportData, PaymentMethod, PaymentTypeOption } from '@/types/payment';
 import type { ProjectDocument } from '@/types/project'; // Import ProjectDocument for typing
@@ -112,9 +114,14 @@ export const addPayment = async (paymentData: PaymentImportData | Omit<Payment, 
     'amount', 
     'paymentMethod', 
     'paymentType', 
-    'installments', 
     'notes'
   ];
+  
+  // Manejar específicamente el campo installments sólo para tarjeta de crédito
+  if ('paymentMethod' in paymentData && paymentData.paymentMethod === 'tarjeta de crédito' && 
+      'installments' in paymentData && paymentData.installments !== undefined) {
+    dataToSave.installments = Number(paymentData.installments);
+  }
 
   optionalFields.forEach(field => {
     const key = field as keyof typeof paymentData; 
@@ -252,5 +259,200 @@ export const deletePaymentsForProject = async (projectId: string): Promise<void>
   // Note: This function does not adjust project balance when deleting all payments for a project.
   // If a project is deleted, its balance effectively becomes irrelevant, or should be reset/archived.
   await batch.commit();
+};
+
+interface Installment {
+  date: Date;
+  amount: number;
+  isPaid: boolean;
+  paymentId: string;
+  installmentNumber: number;
+  totalInstallments: number;
+}
+
+/**
+ * Genera todas las cuotas para un pago a plazos
+ */
+const generateInstallments = (payment: Payment): Installment[] => {
+  if (!payment.amount || !payment.installments || !payment.date) {
+    return [];
+  }
+
+  const installments: Installment[] = [];
+  const amountPerInstallment = payment.amount / payment.installments;
+  const startDate = new Date(payment.date);
+  
+  // Si es el primer pago, se toma la fecha original
+  installments.push({
+    date: startDate,
+    amount: amountPerInstallment,
+    isPaid: true, // El primer pago se considera pagado
+    paymentId: payment.id,
+    installmentNumber: 1,
+    totalInstallments: payment.installments
+  });
+
+  // Generar las cuotas restantes
+  for (let i = 1; i < payment.installments; i++) {
+    const installmentDate = new Date(startDate);
+    installmentDate.setMonth(startDate.getMonth() + i);
+    
+    installments.push({
+      date: installmentDate,
+      amount: amountPerInstallment,
+      isPaid: false, // Las cuotas futuras no están pagadas
+      paymentId: payment.id,
+      installmentNumber: i + 1,
+      totalInstallments: payment.installments
+    });
+  }
+
+  return installments;
+};
+
+/**
+ * Obtiene el total de cuotas pendientes para el mes actual
+ * que cumplan con:
+ * 1. Pertenecen al mes y año actual
+ * 2. Están marcadas como pendientes (no pagadas)
+ * 3. Su fecha de vencimiento es igual o posterior a hoy
+ */
+export const getCurrentMonthInstallmentSum = async (): Promise<number> => {
+  try {
+    console.log('Iniciando cálculo de total del mes actual...');
+    
+    // Fechas importantes
+    const now = new Date();
+    now.setHours(0, 0, 0, 0); // Normalizar a inicio del día
+    
+    // Obtener primer y último día del mes actual
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    lastDayOfMonth.setHours(23, 59, 59, 999); // Fin del día
+    
+    console.log('Rango de fechas para el cálculo:');
+    console.log(`- Desde: ${now.toISOString()} (hoy)`);
+    console.log(`- Hasta: ${lastDayOfMonth.toISOString()} (fin de mes)`);
+    
+    // Obtenemos todos los pagos a cuotas
+    const paymentsCollectionRef = collection(db, PAYMENTS_COLLECTION);
+    const q = query(
+      paymentsCollectionRef,
+      where('installments', '>', 1) // Solo pagos a cuotas
+    );
+
+    console.log('Ejecutando consulta de pagos a cuotas...');
+    const querySnapshot = await getDocs(q);
+    console.log(`Se encontraron ${querySnapshot.size} pagos a cuotas`);
+    
+    let total = 0;
+    
+    // Procesar cada pago y generar sus cuotas
+    for (const doc of querySnapshot.docs) {
+      try {
+        const payment = paymentFromDoc(doc);
+        const installments = generateInstallments(payment);
+        
+        console.log(`\nProcesando pago ${payment.id} con ${installments.length} cuotas`);
+        
+        // Filtrar cuotas según los criterios:
+        // 1. Del mes actual
+        // 2. No pagadas
+        // 3. Con fecha de vencimiento >= hoy
+        const validInstallments = installments.filter(installment => {
+          const installmentDate = new Date(installment.date);
+          installmentDate.setHours(0, 0, 0, 0); // Normalizar fecha
+          
+          const isCurrentMonth = 
+            installmentDate.getMonth() === now.getMonth() &&
+            installmentDate.getFullYear() === now.getFullYear();
+            
+          const isPending = !installment.isPaid;
+          const isDueTodayOrFuture = installmentDate >= now;
+          
+          return isCurrentMonth && isPending && isDueTodayOrFuture;
+        });
+        
+        if (validInstallments.length > 0) {
+          console.log(`- Encontradas ${validInstallments.length} cuotas válidas:`);
+          
+          validInstallments.forEach((inst, idx) => {
+            const formattedDate = new Date(inst.date).toLocaleDateString();
+            console.log(`  ${idx + 1}. ${formattedDate} - $${inst.amount.toFixed(2)}`);
+          });
+          
+          const monthlyTotal = validInstallments.reduce((sum, inst) => sum + inst.amount, 0);
+          console.log(`- Monto total para este pago: $${monthlyTotal.toFixed(2)}`);
+          total += monthlyTotal;
+        } else {
+          console.log('- No hay cuotas que cumplan los criterios');
+        }
+      } catch (error) {
+        console.error('Error procesando documento:', doc.id, error);
+      }
+    }
+
+    console.log('\nTotal calculado para el mes actual: $' + total.toFixed(2));
+    return total;
+  } catch (error) {
+    console.error('Error calculando total de cuotas del mes actual:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene el total de cuotas pendientes de pago
+ */
+export const getTotalPendingInstallmentSum = async (): Promise<number> => {
+  try {
+    console.log('Iniciando cálculo de total pendiente...');
+    // Obtenemos todos los pagos a cuotas
+    const paymentsCollectionRef = collection(db, PAYMENTS_COLLECTION);
+    const q = query(
+      paymentsCollectionRef,
+      where('installments', '>', 1) // Solo pagos a cuotas
+    );
+
+    console.log('Ejecutando consulta de pagos a cuotas para total pendiente...');
+    const querySnapshot = await getDocs(q);
+    console.log(`Se encontraron ${querySnapshot.size} pagos a cuotas`);
+    
+    let total = 0;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0); // Normalizar la fecha actual
+    console.log('Fecha actual normalizada:', now.toISOString());
+    
+    // Procesar cada pago y generar sus cuotas
+    querySnapshot.forEach((doc) => {
+      try {
+        const payment = paymentFromDoc(doc);
+        const installments = generateInstallments(payment);
+        
+        console.log(`Procesando pago ${payment.id} con ${installments.length} cuotas`);
+        
+        // Filtrar cuotas pendientes (no pagadas y con fecha futura o hoy)
+        const pendingInstallments = installments.filter(installment => {
+          const installmentDate = new Date(installment.date);
+          installmentDate.setHours(0, 0, 0, 0);
+          return !installment.isPaid && installmentDate >= now;
+        });
+        
+        if (pendingInstallments.length > 0) {
+          console.log(`- ${pendingInstallments.length} cuotas pendientes`);
+          const pendingTotal = pendingInstallments.reduce((sum, inst) => sum + inst.amount, 0);
+          console.log(`- Monto total pendiente para este pago: ${pendingTotal}`);
+          total += pendingTotal;
+        }
+      } catch (error) {
+        console.error('Error procesando documento para total pendiente:', doc.id, error);
+      }
+    });
+
+    console.log('Total pendiente calculado:', total);
+    return total;
+  } catch (error) {
+    console.error('Error calculando total de cuotas pendientes:', error);
+    throw error;
+  }
 };
 

@@ -82,7 +82,7 @@ body {
     --primary: 217.2 91.2% 59.8%; /* dark:bg-blue-400 (Primario Dark) */
     --primary-foreground: 0 0% 98%; /* dark:text-white (CAMBIADO) */
 
-    --secondary: 240 5.1% 19%; /* dark:bg-gray-700 */
+    --secondary: 220, 10%, 20%; /* dark:bg-gray-800 */
     --secondary-foreground: 0 0% 98%; /* dark:text-white */
 
     --muted: 240 5.1% 19%; /* dark:bg-gray-700 */

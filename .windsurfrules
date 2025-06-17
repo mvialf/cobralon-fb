@@ -36,3 +36,81 @@
   - Limitaciones conocidas
   - Créditos y licencia
 - **Mantenimiento:** La documentación debe mantenerse **actualizada** con cada cambio significativo en el código. Si encuentras algo desactualizado, márcalo o corrígelo.
+
+# Guía de Desarrollo y Arquitectura del Proyecto
+
+Este documento establece las reglas y la estructura que la IA debe seguir al generar o modificar código en este proyecto. El objetivo es mantener una base de código consistente, modular y fácil de mantener.
+
+## Creación de Funciones
+
+Sigue estas directrices para añadir nuevas funciones.
+
+1.  **Verificar Existencia:** Antes de crear cualquier función nueva, verifica que no exista ya una función con un propósito similar en la siguiente estructura de directorios. El objetivo es maximizar la reutilización y evitar la duplicación de código.
+
+    ```
+    src/
+    ├── utils/          # Funciones utilitarias generales y puras
+    │   ├── format.ts     # Formateo de datos (fechas, monedas, etc.)
+    │   ├── validation.ts # Lógica de validación de formularios o datos
+    │   └── helpers.ts    # Funciones de ayuda genéricas
+    │
+    ├── lib/            # Lógica de negocio central y configuraciones
+    │   ├── api.ts        # Cliente y helpers para la API principal
+    │   ├── auth.ts       # Funciones relacionadas con la autenticación
+    │   └── db.ts         # Conexión y operaciones con la base de datos
+    │
+    ├── hooks/          # React Custom Hooks
+    │   ├── useAuth.ts
+    │   └── useApi.ts
+    │
+    └── services/       # Integración con servicios de terceros
+        ├── stripe.ts
+        └── analytics.ts
+    ```
+
+2.  **Ubicación y Creación:** Si la función no existe, créala en el fichero y la carpeta más apropiados según su propósito. Categoriza la nueva función de manera lógica para asegurar que otros desarrolladores (y la propia IA) puedan encontrarla y reutilizarla fácilmente en el futuro.
+
+## Creación de Constantes
+
+Utiliza este sistema para gestionar todas las constantes del proyecto.
+
+1.  **Verificar Existencia:** Antes de añadir una nueva constante, comprueba si ya existe en la estructura centralizada de constantes para evitar duplicados.
+
+    ```
+    src/
+    └── constants/
+        ├── index.ts        # Punto de entrada que exporta todas las constantes
+        ├── app.ts          # Constantes generales de la aplicación
+        ├── routes.ts       # Rutas de navegación y enlaces
+        ├── api.ts          # Endpoints, claves públicas de API y configuración
+        └── validation.ts   # Mensajes de error, regex y reglas de validación
+    ```
+
+2.  **Ubicación y Creación:** Si la constante es nueva, añádela al fichero correspondiente dentro del directorio `src/constants/`. Asegúrate de categorizarla correctamente para mantener el orden y la previsibilidad. No se deben usar valores "mágicos" (strings o números sin un nombre de variable) en el código; siempre deben definirse como una constante en esta estructura.
+
+# === Guía de Estilo y Componentes ===
+
+## Regla: Reutilización de Colores y Componentes
+
+**ID de la Regla:** `reuse-tailwind-and-global-elements`
+**Severidad:** `error`
+
+### Descripción
+
+Para mantener la consistencia visual, la eficiencia del desarrollo y la mantenibilidad del código, es **obligatorio** reutilizar siempre que sea posible los colores y componentes definidos en la configuración de Tailwind CSS y en el archivo `global.css`.
+
+### Detalles de la Regla
+
+#### 1. Colores
+
+- **No usar valores harcodeados:** Queda estrictamente prohibido el uso de códigos de color hexadecimales (ej. `#F0F0F0`), RGB o nombres de colores que no estén definidos como parte del tema de Tailwind.
+
+- **Fuente de la verdad:**
+    - **Colores de Tailwind:** Utiliza las clases de utilidad de color de Tailwind (ej. `bg-blue-500`, `text-gray-800`).
+    - **Colores personalizados:** Si se necesita un color que no está en la paleta por defecto, debe ser añadido a la configuración `tailwind.config.js` dentro de la sección `theme.extend.colors`.
+    - **Variables globales:** Los colores también pueden definirse como variables CSS en `global.css` y ser consumidos desde la configuración de Tailwind.
+
+- **Ejemplo de incumplimiento:**
+  ```html
+  <div style="background-color: #123456;"></div>
+  <p class="text-[#ABCDEF]"></p>

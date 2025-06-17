@@ -41,7 +41,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { DollarSign, Edit, Trash2, GanttChartSquare, Search, Loader2 } from 'lucide-react';
+import { DollarSign, Edit, Trash2, GanttChartSquare, Search, Loader2, CreditCard } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 
 const formatCurrency = (amount: number | undefined | null) => {
@@ -220,6 +221,7 @@ export default function PaymentsPage() {
                   <TableHead>Proyecto</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead>Fecha</TableHead>
+                  <TableHead>Medio de Pago</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead className="text-right w-[100px]">Acciones</TableHead>
                 </TableRow>
@@ -236,6 +238,20 @@ export default function PaymentsPage() {
                       </TableCell>
                       <TableCell className="text-right">{formatCurrency(payment.amount)}</TableCell>
                       <TableCell>{payment.date ? formatDate(payment.date, 'P', { locale: es }) : 'N/A'}</TableCell>
+                      <TableCell className="flex items-center gap-2">
+                        {payment.paymentMethod === 'tarjeta de crédito' ? (
+                          <>
+                            <span>Tarjeta de Crédito</span>
+                            {payment.installments && (
+                              <Badge variant="accent" className="ml-1 whitespace-nowrap">
+                              {payment.installments}
+                              </Badge>
+                            )}
+                          </>
+                        ) : (
+                          payment.paymentMethod || 'N/A'
+                        )}
+                      </TableCell>
                       <TableCell>{payment.paymentType || 'N/A'}</TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -260,7 +276,7 @@ export default function PaymentsPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                       <DollarSign className="mx-auto h-12 w-12 mb-4" />
                       <p className="text-lg font-semibold">No hay pagos registrados.</p>
                       <p className="text-sm">Empieza añadiendo pagos a tus proyectos.</p>

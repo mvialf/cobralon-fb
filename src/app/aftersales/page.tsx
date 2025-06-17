@@ -122,7 +122,7 @@ export default function AfterSalesPage() {
   }, [afterSalesData, projectsMap, searchQuery]);
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="flex flex-col h-full p-4 md:p-6 lg:p-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <SidebarTrigger />
