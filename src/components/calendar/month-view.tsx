@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useDroppable } from '@dnd-kit/core';
 import type { EventType } from '@/types/event';
 import { CalendarEvent } from './calendar-event';
 import { 
@@ -53,8 +54,60 @@ export function MonthView({
       .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
   };
 
+  // Componente para cada celda de día con soporte para soltar
+  const DayCell = ({ day, dayEvents, index }: { day: Date; dayEvents: EventType[]; index: number }) => {
+    const { setNodeRef, isOver } = useDroppable({
+      id: day.toISOString(),
+      data: {
+        accepts: ['event'],
+        date: day
+      },
+    });
+
+    return (
+      <div
+        ref={setNodeRef}
+        key={index}
+        className={cn(
+          "border-r border-b border-border p-1.5 flex flex-col relative cursor-pointer transition-colors duration-150",
+          !isSameMonth(day, currentDate) && "bg-muted/30 text-muted-foreground/60",
+          isToday(day) && "bg-primary/10",
+          isOver && "bg-accent/20",
+          (index + 1) % 7 === 0 && "border-r-0" // No right border for last column
+        )}
+        onClick={() => onDayCellClick(day)}
+      >
+        <span
+          className={cn(
+            "self-start mb-1 text-xs font-medium p-1 rounded-full h-6 w-6 flex items-center justify-center",
+            isToday(day) ? "bg-primary text-primary-foreground" : "text-foreground"
+          )}
+        >
+          {format(day, 'd')}
+        </span>
+        <div className="flex-grow space-y-0.5"> 
+          {dayEvents.slice(0, 3).map(event => ( 
+            <CalendarEvent 
+              key={event.id} 
+              event={event} 
+              onClick={onEventClick} 
+              view="month"
+              enableDragAndDrop={enableDragAndDrop}
+              enableResizing={enableResizing}
+            />
+          ))}
+          {dayEvents.length > 3 && (
+            <div className="text-xs text-muted-foreground p-1 text-center">
+              +{dayEvents.length - 3} más
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="flex flex-col bg-card rounded-lg shadow-md border border-border"> {/* MODIFIED: Removed h-full and overflow-hidden */}
+    <div className="flex flex-col bg-card rounded-lg shadow-md border border-border">
       <div className="grid grid-cols-7 border-b border-border">
         {dayNames.map(dayName => (
           <div key={dayName} className="p-2 text-center font-medium text-sm text-muted-foreground">
@@ -62,48 +115,15 @@ export function MonthView({
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7"> {/* MODIFIED: Removed flex-grow and overflow-auto */}
-        {weeks.flat().map((day, index) => {
-          const dayEvents = getEventsForDay(day);
-          return (
-            <div
-              key={index}
-              className={cn(
-                "border-r border-b border-border p-1.5 flex flex-col relative cursor-pointer hover:bg-secondary/50 transition-colors duration-150",
-                !isSameMonth(day, currentDate) && "bg-muted/30 text-muted-foreground/60",
-                isToday(day) && "bg-primary/10",
-                (index + 1) % 7 === 0 && "border-r-0" // No right border for last column
-              )}
-              onClick={() => onDayCellClick(day)}
-            >
-              <span
-                className={cn(
-                  "self-start mb-1 text-xs font-medium p-1 rounded-full h-6 w-6 flex items-center justify-center",
-                  isToday(day) ? "bg-primary text-primary-foreground" : "text-foreground"
-                )}
-              >
-                {format(day, 'd')}
-              </span>
-              <div className="flex-grow space-y-0.5"> 
-                {dayEvents.slice(0, 3).map(event => ( 
-                  <CalendarEvent 
-                    key={event.id} 
-                    event={event} 
-                    onClick={onEventClick} 
-                    view="month"
-                    enableDragAndDrop={enableDragAndDrop}
-                    enableResizing={enableResizing}
-                  />
-                ))}
-                {dayEvents.length > 3 && (
-                  <div className="text-xs text-muted-foreground p-1 text-center">
-                    +{dayEvents.length - 3} más
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+      <div className="grid grid-cols-7">
+        {weeks.flat().map((day, index) => (
+          <DayCell 
+            key={index} 
+            day={day} 
+            dayEvents={getEventsForDay(day)} 
+            index={index} 
+          />
+        ))}
       </div>
     </div>
   );

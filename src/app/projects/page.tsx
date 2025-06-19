@@ -11,8 +11,9 @@ import type { Payment, PaymentMethod } from '@/types/payment'; // Import Payment
 import { getProjects, updateProject, deleteProject } from '@/services/projectService';
 import { getClients } from '@/services/clientService';
 import { addPayment, getAllPayments } from '@/services/paymentService'; // Import addPayment service
-import { format as formatDate } from '@/lib/calendar-utils';
+import { format as formatDate } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { formatCurrency, formatClientDisplay } from '@/utils/format-helpers';
 import { getPaymentPercentageBadgeVariant, getStatusBadgeVariant, PROJECT_STATUS_OPTIONS } from '@/lib/constants'; 
 import type { ProjectStatusConstant } from '@/lib/constants';
 
@@ -60,12 +61,6 @@ import PaymentModal from '@/components/payment-modal';
 import AccountStatementDialog from '@/components/account-statement-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-
-// Helper to format currency (Chilean Pesos example)
-const formatCurrency = (amount: number | undefined | null) => {
-  if (amount === undefined || amount === null) return 'N/A';
-  return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
-};
 
 // Skeleton for table rows
 const ProjectRowSkeleton = () => (
@@ -397,10 +392,10 @@ export default function ProjectsPage() {
                   [...Array(5)].map((_, i) => <ProjectRowSkeleton key={i} />)
                 ) : filteredProjects.length > 0 ? (
                   filteredProjects.map((project) => {
-                    let clientDisplay = project.clientName || 'Cliente no encontrado';
-                    if (project.glosa && project.glosa.trim() !== '') {
-                      clientDisplay += ` - ${project.glosa}`;
-                    }
+                    const clientDisplay = formatClientDisplay({
+                      clientName: project.clientName,
+                      glosa: project.glosa
+                    });
                     const isRowUpdating = updateProjectMutation.isPending && updateProjectMutation.variables?.projectId === project.id;
                     const isRowDeleting = deleteProjectMutation.isPending && projectToDelete?.id === project.id;
                     const isCurrentRowMutating = isRowUpdating || isRowDeleting || (addPaymentMutation.isPending && selectedProjectForPayment?.id === project.id);
@@ -439,7 +434,7 @@ export default function ProjectsPage() {
                               )}
                               aria-label={`Estado: ${project.status}. Cambiar estado.`}
                             >
-                              <Badge variant={getStatusBadgeVariant(project.status)} className="w-full pointer-events-none justify-center">
+                              <Badge variant={getStatusBadgeVariant(project.status)} className="pointer-events-none px-4 align-center justify-center">
                                 {project.status}
                               </Badge>
                             </SelectTrigger>
@@ -472,8 +467,8 @@ export default function ProjectsPage() {
                         <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" disabled={isCurrentRowMutating} aria-label="Más acciones">
-                                {isCurrentRowMutating && (isRowDeleting || (isRowUpdating && !updateProjectMutation.variables?.projectData.hasOwnProperty('isPaid') && !updateProjectMutation.variables?.projectData.hasOwnProperty('status'))) ? <Loader2 className="h-4 w-4 animate-spin" /> : <GanttChartSquare className="h-4 w-4" />}
+                              <Button variant="ghost" size="default" disabled={isCurrentRowMutating} aria-label="Más acciones">
+                                {isCurrentRowMutating && (isRowDeleting || (isRowUpdating && !updateProjectMutation.variables?.projectData.hasOwnProperty('isPaid') && !updateProjectMutation.variables?.projectData.hasOwnProperty('status'))) ? <Loader2 className="h-4 w-4 animate-spin" /> : <GanttChartSquare className="h-6 w-6" />}
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">

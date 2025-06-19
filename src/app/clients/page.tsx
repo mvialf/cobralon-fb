@@ -185,7 +185,7 @@ export default function ClientsPage() {
       <main className="flex-grow">
         <Card className="shadow-lg">
           <div className="flex items-center justify-between p-4 border-b">
-             <Input 
+            <Input 
               placeholder="Filtrar clientes por nombre o email..." 
               value={filterText} 
               onChange={(e) => setFilterText(e.target.value)} 

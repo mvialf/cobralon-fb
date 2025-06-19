@@ -162,13 +162,24 @@ export default function EditProjectPage() {
     // Default values are set by reset in useEffect
   });
 
+  // Función auxiliar para validar el estado del proyecto
+  const getValidStatus = (status: string): typeof PROJECT_STATUS_OPTIONS[number] => {
+    return PROJECT_STATUS_OPTIONS.includes(status as any) 
+      ? status as typeof PROJECT_STATUS_OPTIONS[number]
+      : 'ingresado'; // Valor por defecto
+  };
+
   useEffect(() => {
     if (projectData) {
       const formattedData = {
         ...projectData,
         date: projectData.date ? new Date(projectData.date) : new Date(),
-        uninstallTypes: Array.isArray(projectData.uninstallTypes) ? projectData.uninstallTypes : [],
+        uninstallTypes: Array.isArray(projectData.uninstallTypes) 
+          ? projectData.uninstallTypes 
+          : [],
         isPaid: projectData.isPaid || false,
+        // Asegurarse de que el status sea uno de los valores permitidos
+        status: getValidStatus(projectData.status)
       };
       reset(formattedData);
     }

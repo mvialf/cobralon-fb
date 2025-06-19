@@ -4,4 +4,5 @@
 export * from './badge-helpers';
 export * from './calendar-helpers';
 export * from './date-helpers';
+export * from './format-helpers';
 export * from './tailwind-helpers';

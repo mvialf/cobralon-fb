@@ -6,7 +6,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Briefcase, CalendarDays, Settings, Users, Loader2, DollarSign, LineChart, Wrench } from 'lucide-react'; // Added LineChart and Wrench
+import { Briefcase, CalendarDays, Settings, Users, Loader2, DollarSign, LineChart, Wrench, Home } from 'lucide-react'; // Added LineChart, Wrench, and Home
 import { useState, useEffect } from 'react';
 import { ThemeProvider } from "next-themes";
 
@@ -139,6 +139,18 @@ export default function RootLayout({
                         <Link href="/aftersales">
                           <Wrench />
                           <span>Postventas</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={pathname === '/visits' || pathname?.startsWith('/visits/')}
+                        tooltip={{children: "Visitas", side:"right"}}
+                      >
+                        <Link href="/visits">
+                          <Home />
+                          <span>Visitas</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

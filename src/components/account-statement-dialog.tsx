@@ -137,10 +137,10 @@ Saldo Pendiente: ${formatCurrency(pendingBalance)}
 
         {/* desde este div se copia todo el contenido */}  
         <div ref={contentRef} className="flex flex-col h-full">
-          <DialogHeader className="w-full flex flex-row bg-background px-6 py-4 border-b border-border flex items-center justify-between">
+          <DialogHeader className="w-full flex flex-row bg-background px-6 py-4 border-b border-border items-center justify-between">
             <DialogTitle className="text-xl font-bold">ESTADO DE CUENTA</DialogTitle>
             <div className="text-md text-muted-foreground font-medium text-right">
-                {project.date ? formatDate(project.date, 'dd/MM/yyyy', { locale: es }) : 'N/A'}
+                {project?.date ? formatDate(project.date, 'dd/MM/yyyy', { locale: es }) : 'N/A'}
             </div>
           </DialogHeader>
         

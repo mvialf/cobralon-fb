@@ -9,7 +9,7 @@ export interface TaskItem {
   completedAt?: Date;
 }
 
-export type AfterSalesStatus = 'pendiente' | 'en progreso' | 'visita programada' | 'en espera de repuestos' | 'resuelta' | 'cerrada sin solución' | 'cancelada' | string;
+export type AfterSalesStatus = 'Ingresada' | 'Agendada' | 'Reagendar' | 'Completada';
 
 export interface AfterSales {
   id: string;
@@ -27,9 +27,15 @@ export interface AfterSales {
 
 // Helper type for Firestore document structure
 export interface AfterSalesDocument extends Omit<AfterSales, 'id' | 'entryDate' | 'resolutionDate' | 'createdAt' | 'updatedAt' | 'tasks'> {
-  entryDate?: Timestamp;
-  resolutionDate?: Timestamp;
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
-  tasks?: Omit<TaskItem, 'createdAt' | 'completedAt'> & { createdAt?: Timestamp, completedAt?: Timestamp }[];
+  entryDate: Timestamp;
+  resolutionDate?: Timestamp | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  tasks?: Array<{
+    id: string;
+    description: string;
+    isCompleted: boolean;
+    createdAt?: Timestamp;
+    completedAt?: Timestamp;
+  }>;
 }

@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient as useQueryClientHook } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns, parseISO } from 'date-fns';
-
+import {MoneyInput} from '@/components/ui/money-input';
 import type { ProjectType, ProjectStatus } from '@/types/project';
 import type { Client } from '@/types/client';
 import { addProject } from '@/services/projectService';
@@ -20,6 +20,7 @@ import { UNINSTALL_TYPE_OPTIONS, PROJECT_STATUS_OPTIONS } from '@/lib/constants'
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { TaxRateInput } from '@/components/ui/tax-rate-input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -47,8 +48,28 @@ const projectSchema = z.object({
     z.number({ invalid_type_error: "Subtotal debe ser un número." }).min(0, "Subtotal no puede ser negativo.")
   ),
   taxRate: z.preprocess(
-    (val) => (typeof val === 'string' ? parseFloat(val) : val),
-    z.number({ invalid_type_error: "IVA debe ser un número." }).min(0).max(100).default(19)
+    (val) => {
+      if (val === '') return undefined;
+      if (typeof val === 'string') {
+        // Reemplazar coma por punto para el parseo
+        return parseFloat(val.replace(',', '.'));
+      }
+      return val;
+    },
+    z.number({ 
+      invalid_type_error: "IVA debe ser un número." 
+    })
+    .min(0, "El IVA no puede ser negativo.")
+    .max(100, "El IVA no puede ser mayor a 100%")
+    .refine(
+      (val) => {
+        // Validar que tenga máximo 2 decimales
+        const decimalPart = String(val).split('.')[1];
+        return !decimalPart || decimalPart.length <= 2;
+      },
+      { message: "Máximo 2 decimales permitidos" }
+    )
+    .default(19)
   ),
   windowsCount: z.preprocess(
     (val) => (val === "" || val === undefined || val === null ? 0 : (typeof val === 'string' ? parseInt(val, 10) : val)),
@@ -152,7 +173,7 @@ export default function NewProjectPage() {
     const total = subtotal * (1 + taxRate / 100);
     const balance = total;
 
-    const projectDataToSave: Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt' | 'total' | 'balance'> = {
+    const projectDataToSave: Omit<ProjectType, 'id' | 'createdAt' | 'updatedAt'> = {
       ...data,
       date: data.date,
       subtotal,
@@ -195,7 +216,7 @@ export default function NewProjectPage() {
   };
 
   return (
-    <div className="flex flex-col h-full p-4 md:p-6 lg:p-8">
+    <div className="max-w-[900px] flex flex-col h-full p-4 md:p-6 lg:p-8">
       <header className="flex items-center justify-between gap-4 mb-6 md:mb-8">
         <div className="flex items-center gap-4">
           <SidebarTrigger className="md:hidden" />
@@ -211,7 +232,7 @@ export default function NewProjectPage() {
         </div>
       </header>
 
-      <Card className="flex-grow shadow-lg">
+      <Card className="w-full flex-grow shadow-lg">
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
             {/* Fila 1: Cliente, Número de proyecto */}
@@ -351,12 +372,39 @@ export default function NewProjectPage() {
             <div className="grid grid-cols-1 md:grid-cols-9 gap-6">
               <div className="md:col-span-3 space-y-2"> 
                 <Label htmlFor="subtotal">Subtotal <span className="text-destructive">*</span></Label>
-                <Input id="subtotal" type="number" step="any" {...register("subtotal")} placeholder="0" disabled={addClientMutation.isPending}/>
-                {errors.subtotal && <p className="text-sm text-destructive">{errors.subtotal.message}</p>}
+                <Controller
+                  name="subtotal"
+                  control={control}
+                  render={({ field }) => (
+                    <MoneyInput
+                      id="subtotal"
+                      value={field.value}
+                      onValueChange={(value) => field.onChange(value)}
+                      placeholder="0"
+                      disabled={addClientMutation.isPending}
+                    />
+                  )}
+                />
+                {errors.subtotal && <p className="text-sm text-right text-destructive">{errors.subtotal.message}</p>}
               </div>
               <div className="md:col-span-2 space-y-2"> 
-                <Label htmlFor="taxRate">IVA (%) <span className="text-destructive">*</span></Label>
-                <Input id="taxRate" type="number" step="any" {...register("taxRate")} placeholder="19" disabled={addClientMutation.isPending}/>
+                <Label htmlFor="taxRate">IVA  <span className="text-destructive">*</span></Label>
+                <Controller
+                  name="taxRate"
+                  control={control}
+                  render={({ field }) => (
+                    <TaxRateInput
+                      id="taxRate"
+                      className="text-right"
+                      value={field.value}
+                      onChange={(value) => field.onChange(value === '' ? '' : Number(value))}
+                      onBlur={field.onBlur}
+                      placeholder="19,00"
+                      suffix="%"
+                      disabled={addClientMutation.isPending}
+                    />
+                  )}
+                />
                 {errors.taxRate && <p className="text-sm text-destructive">{errors.taxRate.message}</p>}
               </div>
               <div className="md:col-span-2 space-y-2"> 
@@ -391,23 +439,15 @@ export default function NewProjectPage() {
             </div>
 
             {/* Fila 5: Dirección y Descripción Completa */}
-             <div className="flex flex-col md:flex-row gap-6">
+             <div className="flex  md:flex-row gap-6">
                 <div className="md:w-1/2 space-y-2">
                     <Label htmlFor="address">Dirección (Proyecto)</Label>
                     <Textarea id="address" {...register("address")} placeholder="Dirección donde se realizará el proyecto" disabled={addClientMutation.isPending}/>
                     {errors.address && <p className="text-sm text-destructive">{errors.address.message}</p>}
                 </div>
-                <div className="md:w-1/2 space-y-2">
-                    <Label htmlFor="description">Descripción Completa</Label>
-                    <Textarea id="description" {...register("description")} placeholder="Detalles completos del proyecto, observaciones, etc." disabled={addClientMutation.isPending} />
-                    {errors.description && <p className="text-sm text-destructive">{errors.description.message}</p>}
-                </div>
-            </div>
-            
-            {/* Fila 6: Switches (Uninstall) & Details */}
-            <div className="space-y-4">
-                <div className="flex items-center space-x-2 pt-2">
-                    <Controller
+                <div className="flex flex-col  space-y-4">
+                <div className="flex items-center space-x-2 pt-2 w-60">
+                    <Controller 
                         name="uninstall"
                         control={control}
                         render={({ field }) => (
@@ -424,7 +464,7 @@ export default function NewProjectPage() {
                 {errors.uninstall && <p className="text-sm text-destructive">{errors.uninstall.message}</p>}
 
                 {uninstallActive && (
-                  <div className="pl-6 space-y-4 border-l-2 border-muted ml-2">
+                  <div className="pl-6 space-y-4 border-l-2 border-muted ml-2 w-80">
                     <div>
                       <Label htmlFor="uninstallTypes">Tipos de Desinstalación</Label>
                       <Controller
@@ -488,19 +528,20 @@ export default function NewProjectPage() {
                   </div>
                 )}
             </div>
+            </div>
+            
+            
             
             {/* Calculated Total (Display Only) */}
-            <div className="md:w-1/3 space-y-2">
-                <Label>Total Calculado (con IVA)</Label>
-                <Input 
+            <div className="flex flex-row justify-start gap-4 items-center w-96 space-y-2">
+                <Label>Valor Total:</Label>
+                <MoneyInput 
                     value={
-                        new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(
-                            (Number(watch("subtotal")) || 0) * (1 + (Number(watch("taxRate")) || 0) / 100)
-                        )
+                        (Number(watch("subtotal")) || 0) * (1 + (Number(watch("taxRate")) || 0) / 100)
                     } 
                     readOnly 
                     disabled 
-                    className="bg-muted/50"
+                    className="w-60 text-right"
                 />
             </div>
 

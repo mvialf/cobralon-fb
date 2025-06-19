@@ -68,7 +68,8 @@ export function CalendarToolbar({
   };
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-b border-border bg-card rounded-t-lg">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 mx-4 mb-6 
+    border-b  border-border bg-card rounded-t-lg">
       <div className="flex items-center gap-2 w-full sm:w-auto">
         <Button variant="outline" onClick={onToday}>Hoy</Button>
         <Button variant="outline" size="icon" onClick={handlePrev} aria-label="Periodo anterior">

@@ -1,0 +1,343 @@
+"use client";
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { toast } from '@/components/ui/use-toast';
+
+// Servicios
+import { getProjects } from '@/services/projectService';
+import { addAfterSales } from '@/services/afterSalesService';
+
+// Componentes UI
+import { Button } from '@/components/ui/button';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar as CalendarIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+// Esquema de validación con Zod
+const formSchema = z.object({
+  projectId: z.string({
+    required_error: 'Debe seleccionar un proyecto',
+  }),
+  title: z.string().min(5, {
+    message: 'El título debe tener al menos 5 caracteres',
+  }),
+  description: z.string().min(10, {
+    message: 'La descripción debe tener al menos 10 caracteres',
+  }),
+  entryDate: z.date({
+    required_error: 'La fecha de solicitud es obligatoria',
+  }),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
+export default function NewAfterSalePage() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [selectedProject, setSelectedProject] = useState<any>(null);
+
+  // Obtener la lista de proyectos
+  const { data: projects = [], isLoading: isLoadingProjects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: () => getProjects(),
+  });
+
+  // Configuración del formulario
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      title: '',
+      description: '',
+      entryDate: new Date(),
+    },
+  });
+
+  // Mutación para crear una nueva postventa
+  const createAfterSaleMutation = useMutation({
+    mutationFn: async (data: FormValues) => {
+      // Crear el objeto de postventa
+      const afterSaleData = {
+        projectId: data.projectId,
+        description: `${data.title}\n\n${data.description}`,
+        entryDate: data.entryDate,
+        afterSalesStatus: 'pendiente' as const,
+        tasks: [],
+      };
+
+      return await addAfterSales(afterSaleData);
+    },
+    onSuccess: () => {
+      // Mostrar notificación de éxito
+      toast({
+        title: 'Postventa creada',
+        description: 'La solicitud de postventa se ha registrado correctamente.',
+      });
+
+      // Invalidar la consulta de postventas para actualizar la lista
+      queryClient.invalidateQueries({ queryKey: ['afterSales'] });
+
+      // Redirigir a la lista de postventas
+      router.push('/aftersales');
+    },
+    onError: (error) => {
+      console.error('Error al crear la postventa:', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo crear la solicitud de postventa. Intente nuevamente.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Manejar el envío del formulario
+  const onSubmit = (data: FormValues) => {
+    createAfterSaleMutation.mutate(data);
+  };
+
+  // Efecto para actualizar el proyecto seleccionado cuando cambia el valor del campo
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === 'projectId' && value.projectId) {
+        const project = projects.find((p) => p.id === value.projectId);
+        setSelectedProject(project || null);
+      }
+    });
+    
+    return () => subscription.unsubscribe();
+  }, [form, projects]);
+
+  return (
+    <div className="container mx-auto py-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Nueva Solicitud de Postventa</h1>
+          <p className="text-muted-foreground">
+            Complete el formulario para registrar una nueva solicitud de postventa.
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-card rounded-lg border p-6">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Proyecto Asociado */}
+            <FormField
+              control={form.control}
+              name="projectId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Proyecto Asociado</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    disabled={isLoadingProjects}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccione un proyecto" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {isLoadingProjects ? (
+                        <div className="py-2 text-center text-sm text-muted-foreground">
+                          Cargando proyectos...
+                        </div>
+                      ) : projects.length === 0 ? (
+                        <div className="py-2 text-center text-sm text-muted-foreground">
+                          No hay proyectos disponibles
+                        </div>
+                      ) : (
+                        projects.map((project) => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.name || `Proyecto ${project.id.substring(0, 6)}`} - {project.clientName || 'Sin cliente'}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Cliente (solo lectura, se autocompleta) */}
+            <FormItem>
+              <FormLabel>Cliente</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="Seleccione un proyecto para ver el cliente"
+                  readOnly
+                  value={selectedProject?.clientName || 'No seleccionado'}
+                />
+              </FormControl>
+              <FormDescription>
+                El cliente asociado al proyecto seleccionado.
+              </FormDescription>
+            </FormItem>
+
+            {/* Título de la Solicitud */}
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Título de la Solicitud</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Ej: Filtración en baño principal"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Un título breve que describa el problema o solicitud.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Fecha de Solicitud */}
+            <FormField
+              control={form.control}
+              name="entryDate"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Fecha de Solicitud</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-[240px] pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value ? (
+                            format(field.value, "PPP", { locale: es })
+                          ) : (
+                            <span>Seleccione una fecha</span>
+                          )}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        disabled={(date) =>
+                          date > new Date() || date < new Date("1900-01-01")
+                        }
+                        initialFocus
+                        locale={es}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormDescription>
+                    Fecha en que se realiza la solicitud de postventa.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Descripción Detallada */}
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Descripción Detallada</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Describa con el mayor detalle posible el problema o solicitud..."
+                      className="min-h-[120px]"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Incluya toda la información relevante para atender la solicitud.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="flex justify-end space-x-4 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push('/aftersales')}
+                disabled={createAfterSaleMutation.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={createAfterSaleMutation.isPending}
+              >
+                {createAfterSaleMutation.isPending ? (
+                  <>
+                    <span className="mr-2 h-4 w-4 animate-spin">
+                      <svg className="h-4 w-4" viewBox="0 0 24 24">
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                          fill="none"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        />
+                      </svg>
+                    </span>
+                    Guardando...
+                  </>
+                ) : (
+                  'Guardar Postventa'
+                )}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </div>
+    </div>
+  );
+}

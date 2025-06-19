@@ -5,7 +5,7 @@ import type { EventType, ViewOption } from '@/types/event';
 import { CalendarView } from '@/components/calendar/calendar-view';
 import { EventModal } from '@/components/calendar/event-modal';
 import { CalendarToolbar } from '@/components/calendar/calendar-toolbar';
-import { getFirestore } from 'firebase/firestore'; // Asegúrate de que Firebase está inicializado
+import { db } from '@/lib/firebase/client'; // Importar la instancia db configurada
 import { getEvents, addEvent, updateEvent, deleteEvent } from '@/lib/firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { startOfDay, endOfDay, isSameDay, parseISO } from '@/lib/calendar-utils';
@@ -48,11 +48,10 @@ export default function CalReactAppPage() {
   // const db = getFirestore(); // Descomenta y configura según tu inicialización de Firebase
   // const userId = "REEMPLAZAR_CON_USER_ID_REAL"; // Ej: useAuth().currentUser?.uid;
   // Por ahora, usaremos placeholders para que el código compile. Reemplázalos.
-  const db = {} as any; // Placeholder para la instancia de Firestore
-  const userId = "mockUserId"; // Placeholder para el ID de usuario
+  const userId = "mockUserId"; // Placeholder para el ID de usuario. TODO: Reemplazar con la lógica de autenticación real.
 
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
-  const [currentDate, setCurrentDate] = useState<Date | undefined>(undefined);
+  const [currentDate, setCurrentDate] = useState<Date | undefined>(undefined); // Se inicializará en useEffect
   const [isClient, setIsClient] = useState(false);
   const [events, setEvents] = useState<EventType[]>([]);
   const [currentView, setCurrentView] = useState<ViewOption>('month');
@@ -66,10 +65,14 @@ export default function CalReactAppPage() {
     useSensor(KeyboardSensor)
   );
 
+  // Efecto para inicialización del cliente y fecha actual (solo se ejecuta una vez)
   useEffect(() => {
     setIsClient(true);
     setCurrentDate(new Date());
+  }, []);
 
+  // Efecto para cargar eventos (se ejecuta cuando userId, db, o toast cambian)
+  useEffect(() => {
     const fetchEvents = async () => {
       if (!userId || Object.keys(db).length === 0) { // Verifica que db no sea el placeholder vacío
         console.warn("Firestore db o userId no están configurados. Saltando carga de eventos.");
@@ -91,7 +94,7 @@ export default function CalReactAppPage() {
     };
 
     fetchEvents();
-  }, [userId, db]); // Dependencia de userId y db para recargar si cambian
+  }, [userId, db, toast]); // Dependencias actualizadas
 
   const filteredEvents = useMemo(() => {
     if (!filterTerm.trim()) {
@@ -150,55 +153,90 @@ export default function CalReactAppPage() {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
 
-    if (over && active.id !== over.id) {
-      const originalEvent = events.find(ev => ev.id === active.id);
-      if (!originalEvent) return;
-      
-      const droppedOnDateISO = over.id as string;
-      const droppedOnDate = parseISO(droppedOnDateISO);
+    // Verificar si se soltó sobre un área válida y no es el mismo elemento
+    if (!over || !over.data.current || active.id === over.id) {
+      return;
+    }
 
-      if (isNaN(droppedOnDate.getTime())) {
-        console.error("Invalid date from droppable ID:", droppedOnDateISO);
+    // Obtener el evento directamente de los datos del elemento arrastrado
+    const draggedEventData = active.data.current?.event;
+    if (!draggedEventData) {
+      console.error("No se encontraron datos del evento arrastrado");
+      return;
+    }
+
+    // Reconstruir el evento original con los datos del arrastre
+    const originalEvent: EventType = {
+      ...draggedEventData,
+      startDate: new Date(draggedEventData.startDate),
+      endDate: new Date(draggedEventData.endDate),
+      // Asegurarse de que los campos opcionales estén presentes
+      name: draggedEventData.name || 'Sin título',
+      description: draggedEventData.description || '',
+      color: draggedEventData.color || 'hsl(var(--primary))',
+    };
+
+    // Verificar si se soltó sobre una celda de día
+    if (over.data.current.accepts?.includes('event')) {
+      const droppedOnDate = over.data.current.date as Date;
+      
+      if (!(droppedOnDate instanceof Date) || isNaN(droppedOnDate.getTime())) {
+        console.error("Fecha de destino inválida:", droppedOnDate);
         return;
       }
       
-      const originalDuration = originalEvent.endDate.getTime() - originalEvent.startDate.getTime();
-      let newEventStartTime = startOfDay(droppedOnDate);
-      const originalStartIsMidnight = originalEvent.startDate.getHours() === 0 && originalEvent.startDate.getMinutes() === 0 && originalEvent.startDate.getSeconds() === 0 && originalEvent.startDate.getMilliseconds() === 0;
-
-      if (!originalStartIsMidnight) {
-          newEventStartTime.setHours(originalEvent.startDate.getHours());
-          newEventStartTime.setMinutes(originalEvent.startDate.getMinutes());
-          newEventStartTime.setSeconds(originalEvent.startDate.getSeconds());
-          newEventStartTime.setMilliseconds(originalEvent.startDate.getMilliseconds());
+      // Calcular la diferencia en días entre la fecha original y la nueva fecha
+      const dayDiff = Math.floor((droppedOnDate.getTime() - originalEvent.startDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Crear nuevas fechas manteniendo la hora original
+      const newStartDate = new Date(originalEvent.startDate);
+      newStartDate.setDate(newStartDate.getDate() + dayDiff);
+      
+      const newEndDate = new Date(originalEvent.endDate);
+      newEndDate.setDate(newEndDate.getDate() + dayDiff);
+      
+      // Asegurarse de que las nuevas fechas sean válidas
+      if (isNaN(newStartDate.getTime()) || isNaN(newEndDate.getTime())) {
+        console.error("Fechas inválidas después del cálculo:", { newStartDate, newEndDate });
+        return;
       }
-  
-      let newEventEndTime = new Date(newEventStartTime.getTime() + originalDuration);
-
-      const originalWasSingleAllDay = 
-        originalStartIsMidnight &&
-        originalEvent.endDate.getTime() === endOfDay(originalEvent.startDate).getTime() &&
-        isSameDay(originalEvent.startDate, originalEvent.endDate);
-
-      if (originalWasSingleAllDay) {
-        newEventStartTime = startOfDay(droppedOnDate);
-        newEventEndTime = endOfDay(droppedOnDate);
+      
+      // Si el evento era de todo el día, asegurarse de que las horas sean 00:00:00 y 23:59:59
+      const isAllDay = originalEvent.startDate.getHours() === 0 && 
+                      originalEvent.startDate.getMinutes() === 0 && 
+                      originalEvent.startDate.getSeconds() === 0;
+      
+      if (isAllDay) {
+        newStartDate.setHours(0, 0, 0, 0);
+        newEndDate.setHours(23, 59, 59, 999);
       }
       
       const eventIdToUpdate = active.id as string;
-      const changes: Partial<Omit<EventType, 'id'>> = { startDate: newEventStartTime, endDate: newEventEndTime };
+      const changes: Partial<Omit<EventType, 'id'>> = { 
+        startDate: newStartDate, 
+        endDate: newEndDate 
+      };
 
       try {
         if (!userId || Object.keys(db).length === 0) throw new Error("Firestore no configurado");
         const updatedEvent = await updateEvent(db, userId, eventIdToUpdate, changes);
+        
+        // Actualizar el estado local
         setEvents(prevEvents =>
           prevEvents.map(ev => (ev.id === updatedEvent.id ? updatedEvent : ev))
         );
-        toast({ title: "Tarea Actualizada", description: "Fecha de la tarea cambiada arrastrando y soltando." });
+        
+        toast({ 
+          title: "Tarea Actualizada", 
+          description: `La tarea se ha movido al ${updatedEvent.startDate.toLocaleDateString()}.` 
+        });
       } catch (error) {
         console.error("Error al actualizar tarea (drag and drop):", error);
-        toast({ title: "Error al Actualizar", description: "No se pudo cambiar la fecha de la tarea.", variant: "destructive" });
-        // Opcional: Revertir el cambio visual si la actualización falla
+        toast({ 
+          title: "Error al Actualizar", 
+          description: "No se pudo cambiar la fecha de la tarea.", 
+          variant: "destructive" 
+        });
       }
     }
   };
@@ -303,14 +341,11 @@ export default function CalReactAppPage() {
       <div className="flex flex-col h-screen bg-background text-foreground p-0 sm:p-4">
         <header className="p-4 text-center sm:text-left flex items-center gap-4">
           <SidebarTrigger className="md:hidden" /> 
-          <div>
-            <h1 className="text-3xl font-bold text-primary">CalReact</h1>
-            <p className="text-muted-foreground">Aplicación de Calendario Avanzada</p>
-          </div>
+          <h1 className="text-3xl font-bold text-primary">CalReact</h1>
         </header>
         
-        <main className="flex-grow flex flex-col overflow-hidden p-0 sm:p-4 rounded-lg shadow-2xl bg-card">
-          <CalendarToolbar
+        <main className="flex-grow  overflow-hidden p-2 sm:p-4 rounded-lg shadow-2xl bg-background">
+          <CalendarToolbar 
             currentDate={currentDate}
             currentView={currentView}
             filterTerm={filterTerm}

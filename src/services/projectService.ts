@@ -33,23 +33,50 @@ const projectFromDoc = (docSnapshot: any): ProjectType => {
   } as ProjectType;
 };
 
+/**
+ * Obtiene todos los proyectos, opcionalmente filtrados por cliente
+ * @param clientId - ID del cliente para filtrar proyectos (opcional)
+ * @returns Promesa con el array de proyectos, incluyendo información del cliente si está disponible
+ */
 export const getProjects = async (clientId?: string): Promise<ProjectType[]> => {
   const projectsCollectionRef = collection(db, PROJECTS_COLLECTION);
   let q;
+  
+  // Crear la consulta base
   if (clientId) {
-    // Eliminar orderBy para evitar necesitar índice compuesto
     q = query(projectsCollectionRef, where('clientId', '==', clientId));
   } else {
     q = query(projectsCollectionRef);
   }
-  const querySnapshot = await getDocs(q);
-  const projects = querySnapshot.docs.map(projectFromDoc);
   
-  // Ordenar los proyectos en memoria
-  return projects.sort((a, b) => {
-    // Ordenamiento descendente por fecha
-    return b.date.getTime() - a.date.getTime();
-  });
+  // Obtener los proyectos
+  const querySnapshot = await getDocs(q);
+  let projects = querySnapshot.docs.map(projectFromDoc);
+  
+  // Obtener información de clientes para los proyectos
+  const clientIds = [...new Set(projects.map(p => p.clientId))];
+  const clientsPromises = clientIds.map(clientId => 
+    getDoc(doc(db, 'clients', clientId)).catch(() => null)
+  );
+  const clientsSnapshots = await Promise.all(clientsPromises);
+  
+  // Crear un mapa de clientes para búsqueda rápida
+  const clientsMap = clientsSnapshots.reduce((acc, clientDoc) => {
+    if (clientDoc?.exists()) {
+      const clientData = clientDoc.data();
+      acc[clientDoc.id] = clientData?.name || 'Cliente no encontrado';
+    }
+    return acc;
+  }, {} as Record<string, string>);
+  
+  // Enriquecer los proyectos con la información del cliente
+  projects = projects.map(project => ({
+    ...project,
+    clientName: clientsMap[project.clientId] || 'Cliente no encontrado'
+  }));
+  
+  // Ordenar los proyectos por fecha descendente
+  return projects.sort((a, b) => b.date.getTime() - a.date.getTime());
 };
 
 export const getProjectById = async (projectId: string): Promise<ProjectType | null> => {

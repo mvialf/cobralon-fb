@@ -4,7 +4,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -161,8 +162,8 @@ export default function NewClientPaymentPage() {
     loadClientData();
   }, [clientId, router, toast]);
 
-  const handleAllocationChange = (projectId: string, amount: number) => {
-    setProjectAllocations(prev => ({ ...prev, [projectId]: Math.max(0, amount) }));
+  const handleAllocationChange = (projectId: string, amount: number | undefined) => {
+    setProjectAllocations(prev => ({ ...prev, [projectId]: Math.max(0, amount || 0) }));
   };
 
   // Función para distribuir automáticamente los pagos entre proyectos
@@ -282,13 +283,13 @@ export default function NewClientPaymentPage() {
   
   if (projects.length === 0) {
     return (
-      <div className="container mx-auto p-4">
-        <Card className="mb-6 bg-gray-800 border-gray-700">
+      <div className="flex flex-col h-full p-4 md:p-6 lg:p-8">
+        <Card className="flex items-center justify-between p-4 border-b">
           <CardHeader>
             <CardTitle>Cliente: {client.name}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-400">Este cliente no tiene proyectos con saldo pendiente.</p>
+            <p>Este cliente no tiene proyectos con saldo pendiente.</p>
             <Button className="mt-4" onClick={() => router.push('/clients')}>Volver a clientes</Button>
           </CardContent>
         </Card>
@@ -297,56 +298,62 @@ export default function NewClientPaymentPage() {
   }
 
   return (
-    <div className="container mx-auto p-4 theme-dark" style={{ backgroundColor: '#202124', color: 'white' }}>
-      <Card className="mb-6 bg-gray-800 border-gray-700">
+    <div className="flex flex-col h-full p-4 md:p-6 lg:p-8 bg-background">
+      <Card className="mb-6 bg-card border-border w-max">
         <CardHeader>
           <CardTitle>Registrar pago - {client.name}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            <div>
-              <label htmlFor="totalAmount" className="block text-sm font-medium mb-1">Monto</label>
-              <Input id="totalAmount" type="number" value={totalAmount} onChange={(e) => setTotalAmount(parseFloat(e.target.value) || 0)} placeholder="0.00" className="bg-gray-700 border-gray-600 text-white" />
+          <div className="flex gap-4 items-end">
+            <div className="w-60 "> 
+              <Label htmlFor="totalAmount" className="text-right">Monto</Label>
+              <MoneyInput
+                id="totalAmount"
+                value={totalAmount}
+                onValueChange={(value) => setTotalAmount(value || 0)}
+                placeholder="0"
+                className="text-right"
+              />
             </div>
-            <div>
-              <label htmlFor="paymentMethod" className="block text-sm font-medium mb-1">Medio de pago</label>
+            <div className="w-60">
+              <Label htmlFor="paymentMethod" className="flex items-center text-sm font-medium mb-1">Medio de pago</Label>
               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                <SelectTrigger id="paymentMethod" className="w-full bg-gray-700 border-gray-600 text-white">
+                <SelectTrigger id="paymentMethod" className="text-right">
                   <SelectValue placeholder="Seleccionar medio" />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-700 border-gray-600 text-white">
+                <SelectContent className="text-right">
                   {paymentMethods.map(method => (
-                    <SelectItem key={method.value} value={method.value} className="hover:bg-gray-600">
+                    <SelectItem key={method.value} value={method.value}>
                       {method.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <label htmlFor="paymentDate" className="block text-sm font-medium mb-1">Fecha de pago</label>
-              <Input id="paymentDate" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="bg-gray-700 border-gray-600 text-white" />
+            <div className="w-60">
+              <Label htmlFor="paymentDate" className="block text-sm font-medium mb-1">Fecha de pago</Label>
+              <Input id="paymentDate" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="text-right" />
             </div>
-            <div className="flex items-center space-x-2 pt-6">
+            <div className="flex items-center space-x-2 pt-6 w-30">
               <Switch id="autoPayment" checked={isAutoPayment} onCheckedChange={setIsAutoPayment} />
-              <label htmlFor="autoPayment" className="text-sm font-medium">Auto</label>
+              <Label htmlFor="autoPayment" className="text-sm font-medium">Auto</Label>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="mb-6 bg-gray-800 border-gray-700">
+      <Card className="mb-6 bg-card border-border w-max">
         <CardHeader>
           <CardTitle>Proyectos</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table className='w-max'>
             <TableHeader>
               <TableRow>
-                <TableHead>Proyecto</TableHead>
-                <TableHead>Fecha</TableHead>
-                <TableHead className="text-right">Saldo</TableHead>
-                <TableHead className="text-right">Monto a pagar</TableHead>
+                <TableHead className="w-80">Proyecto</TableHead>
+                <TableHead className="w-40">Fecha</TableHead>
+                <TableHead className="w-40 text-right">Saldo</TableHead>
+                <TableHead className="w-60 text-right">Monto a pagar</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -356,13 +363,12 @@ export default function NewClientPaymentPage() {
                   <TableCell>{new Date(project.date).toLocaleDateString()}</TableCell>
                   <TableCell className="text-right">{formatCurrency(projectBalances[project.id] || 0)}</TableCell>
                   <TableCell className="text-right">
-                    <Input 
-                      type="number" 
-                      value={projectAllocations[project.id] || ''} 
-                      onChange={(e) => handleAllocationChange(project.id, parseFloat(e.target.value) || 0)} 
+                    <MoneyInput 
+                      value={projectAllocations[project.id] || 0} 
+                      onValueChange={(value) => handleAllocationChange(project.id, value)} 
                       placeholder="0.00" 
-                      disabled={isAutoPayment} 
-                      className="w-24 text-right bg-gray-700 border-gray-600 text-white"
+                      disabled={isAutoPayment}
+                      className="w-full text-right"
                     />
                   </TableCell>
                 </TableRow>
@@ -373,22 +379,22 @@ export default function NewClientPaymentPage() {
       </Card>
 
 
-      <Card className="mb-6 bg-gray-800 border-gray-700">
+      <Card className="mb-6 bg-card border-border w-max">
         <CardHeader>
           <CardTitle>Historial de Pagos Realizados</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoadingPayments ? (
-            <p className="text-gray-400">Cargando historial de pagos...</p>
+            <p>Cargando historial de pagos...</p>
           ) : Object.keys(historicalPayments).length > 0 ? (
             <div>
-              <Table>
+              <Table className="w-max">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Proyecto</TableHead>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead>Medio de Pago</TableHead>
-                    <TableHead className="text-right">Monto</TableHead>
+                    <TableHead className="w-80">Proyecto</TableHead>
+                    <TableHead className="w-40">Fecha</TableHead>
+                    <TableHead className="w-40">Medio de Pago</TableHead>
+                    <TableHead className="w-60 text-right">Monto</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -404,18 +410,6 @@ export default function NewClientPaymentPage() {
                     ));
                   })}
                 </TableBody>
-                <TableBody className="border-t border-gray-700">
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-right font-medium">Total Pagado:</TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(
-                        Object.values(historicalPayments).flatMap(payments => 
-                          payments.map(payment => payment.amount || 0)
-                        ).reduce((sum, amount) => sum + amount, 0)
-                      )}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
               </Table>
             </div>
           ) : (
@@ -424,7 +418,7 @@ export default function NewClientPaymentPage() {
         </CardContent>
       </Card>
 
-      <div className="flex justify-end space-x-4">
+      <div className="flex justify-end space-x-4 pr-80">
         <Button variant="outline" onClick={() => router.push('/clients')} disabled={isSaving}>Cancelar</Button>
         <Button onClick={handleRegisterPayment} disabled={isSaving || totalAmount <= 0}>
           {isSaving ? 'Registrando...' : 'Registrar pago'}
