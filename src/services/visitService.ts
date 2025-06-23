@@ -7,11 +7,27 @@ export interface Visit {
   id?: string;
   name: string;
   phone: string;
-  address: string;
-  municipality: string;
+  address?: string;
+  municipality?: string;
   status: VisitStatus;
   scheduledDate: Date;
   notes?: string;
+  fullAddress?: {
+    textoCompleto?: string;
+    coordenadas?: {
+      latitude: number;
+      longitude: number;
+    };
+    componentes?: {
+      calle?: string;
+      numero?: string;
+      comuna?: string;
+      ciudad?: string;
+      region?: string;
+      pais?: string;
+      codigoPostal?: string;
+    };
+  };
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -21,7 +37,7 @@ const VISITS_COLLECTION = 'visits';
 /**
  * Agrega una nueva visita a Firestore
  */
-export const addVisit = async (visitData: Omit<Visit, 'id' | 'createdAt' | 'updatedAt'>) => {
+export const addVisit = async (visitData: Omit<Visit, 'id' | 'createdAt' | 'updatedAt'> & { address?: string; municipality?: string }) => {
   try {
     const docRef = await addDoc(collection(db, VISITS_COLLECTION), {
       ...visitData,

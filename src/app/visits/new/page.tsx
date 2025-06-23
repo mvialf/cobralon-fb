@@ -28,16 +28,36 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 import { VisitStatus, VISIT_STATUS_OPTIONS, DEFAULT_VISIT_STATUS } from '@/types/visit';
+import { AddressInput, type FormattedAddress } from '@/components/ui/addressInput';
 
 // Usar el array de opciones directamente para la validación
+// Esquema para la dirección completa
+export const fullAddressSchema = z.object({
+  textoCompleto: z.string().optional(),
+  coordenadas: z.object({
+    latitude: z.number(),
+    longitude: z.number(),
+  }).optional(),
+  componentes: z.object({
+    calle: z.string().optional(),
+    numero: z.string().optional(),
+    comuna: z.string().optional(),
+    ciudad: z.string().optional(),
+    region: z.string().optional(),
+    pais: z.string().optional(),
+    codigoPostal: z.string().optional(),
+  }).optional(),
+}).optional();
+
 const formSchema = z.object({
   name: z.string().min(3, { message: 'El nombre debe tener al menos 3 caracteres.' }),
   phone: z.string().min(9, { message: 'El teléfono debe tener al menos 9 dígitos.' }),
   status: z.enum(VISIT_STATUS_OPTIONS as [string, ...string[]], { 
     required_error: 'Debe seleccionar un estado.' 
   }),
-  address: z.string().min(5, { message: 'La dirección debe tener al menos 5 caracteres.' }),
-  municipality: z.string().min(3, { message: 'La comuna debe tener al menos 3 caracteres.' }),
+  fullAddress: fullAddressSchema,
+  address: z.string().optional(), // Campo opcional para compatibilidad
+  municipality: z.string().optional(), // Campo opcional para compatibilidad
   observations: z.string().optional(),
   scheduledDate: z.date({
     required_error: 'La fecha programada es requerida',
@@ -53,7 +73,12 @@ export default function NewVisitPage() {
     defaultValues: {
       name: '',
       phone: '',
-      status: DEFAULT_VISIT_STATUS,
+      status: DEFAULT_VISIT_STATUS as VisitStatus,
+      fullAddress: {
+        textoCompleto: '',
+        coordenadas: { latitude: 0, longitude: 0 },
+        componentes: {}
+      },
       address: '',
       municipality: '',
       observations: '',
@@ -62,6 +87,20 @@ export default function NewVisitPage() {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Función para manejar la selección de dirección
+  const handleAddressSelect = (address: FormattedAddress | null) => {
+    if (address) {
+      form.setValue('fullAddress', address, { shouldValidate: true, shouldDirty: true });
+      // Mantenemos los campos legacy actualizados por compatibilidad
+      form.setValue('address', address.textoCompleto);
+      form.setValue('municipality', address.componentes?.comuna || '');
+    } else {
+      form.setValue('fullAddress', undefined, { shouldValidate: true, shouldDirty: true });
+      form.setValue('address', '');
+      form.setValue('municipality', '');
+    }
+  };
 
   const onSubmit = async (data: FormValues) => {
     try {
@@ -160,28 +199,19 @@ export default function NewVisitPage() {
           </div>
 
           {/* Fila 2 */}
-          <div className="flex flex-col md:flex-row py-3 gap-6">
+          <div className="flex flex-col py-3 gap-6">
             <FormField
               control={form.control}
-              name="address"
+              name="fullAddress"
               render={({ field }) => (
-                <FormItem className="w-full md:w-2/3">
+                <FormItem className="w-full">
                   <FormLabel>Dirección</FormLabel>
                   <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="municipality"
-              render={({ field }) => (
-                <FormItem className="w-full md:w-1/3">
-                  <FormLabel>Comuna</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
+                    <AddressInput
+                      onPlaceSelected={handleAddressSelect}
+                      defaultValue={field.value?.textoCompleto || ''}
+                      placeholder="Buscar dirección..."
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -242,7 +272,6 @@ export default function NewVisitPage() {
                 <FormLabel>Observaciones</FormLabel>
                 <FormControl>
                   <Textarea
-                    className="min-h-[100px]"
                     {...field}
                   />
                 </FormControl>

@@ -28,13 +28,13 @@ export function DatePicker({ date, onSelect, className, calendarProps }: DatePic
         <Button
           variant={"outline"}
           className={cn(
-            "w-[280px] justify-start text-left font-normal",
+            "w-max justify-start text-left font-normal",
             !date && "text-muted-foreground",
             className
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {date ? format(date, "PPP", { locale: es }) : <span>Seleccione una fecha</span>}
+          {date ? format(date, "dd/MM/yyyy") : <span>Seleccione una fecha</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">

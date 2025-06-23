@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 import type { EventType } from '@/types/event';
 import { format, isSameDay } from '@/lib/calendar-utils';
 import { isValid } from 'date-fns';
-import { useDraggable } from '@dnd-kit/core';
+import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
 import type React from 'react';
 
@@ -74,19 +74,59 @@ export function CalendarEvent({
     }
   }), [event]);
 
-  const {attributes, listeners, setNodeRef, transform, isDragging} = useDraggable({
+  // Configurar el evento como draggable
+  const {attributes, listeners, setNodeRef: setDraggableRef, transform, isDragging} = useDraggable({
     id: event.id,
     data: eventData,
     disabled: !enableDragAndDrop,
   });
 
+  // Configurar el evento como droppable para permitir soltar otros eventos sobre él
+  const {setNodeRef: setDroppableRef, isOver} = useDroppable({
+    id: `droppable-event-${event.id}`,
+    data: {
+      type: 'event-target',
+      accepts: ['event'],
+      eventId: event.id,
+      date: event.startDate,
+      targetEvent: event
+    },
+    disabled: !enableDragAndDrop,
+  });
+  
+  // Combinar los refs para que el elemento sea tanto draggable como droppable
+  const setNodeRef = (node: HTMLElement | null) => {
+    setDraggableRef(node);
+    setDroppableRef(node);
+  };
+
+  // Determinar el color según el tipo de evento
+  const getEventColor = () => {
+    // Si el evento tiene un color personalizado, usar ese primero
+    if (event.color) return event.color;
+    
+    // Si no, asignar un color según el tipo
+    switch(event.type) {
+      case 'Proyecto':
+        return 'hsl(221, 83%, 53%)'; // Azul
+      case 'Postventa':
+        return 'hsl(142, 71%, 45%)'; // Verde
+      case 'Visita':
+        return 'hsl(31, 90%, 50%)';  // Naranja
+      default:
+        return 'hsl(var(--primary))';
+    }
+  };
+  
+  // Estilos para el evento
   const style = {
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    borderLeftColor: event.color || 'hsl(var(--primary))',
-    zIndex: isDragging ? 1000 : 'auto',
+    borderLeftColor: getEventColor(),
+    zIndex: isDragging ? 1000 : (isOver ? 999 : 'auto'),
     opacity: isDragging ? 0.8 : 1,
     transition: isDragging ? 'none' : 'transform 200ms ease',
     cursor: enableDragAndDrop ? 'grab' : 'pointer',
+    boxShadow: isOver ? '0 0 0 2px hsl(var(--primary))' : undefined,
   };
 
 
@@ -94,22 +134,8 @@ export function CalendarEvent({
     e.stopPropagation(); 
     onClick(event);
   };
-
-  const formattedTime = (date: Date) => format(date, 'p'); 
   
-  // Validar fechas antes de usarlas
-  const isAllDayOrTask = useMemo(() => {
-    try {
-      return event.startDate.getHours() === 0 && 
-             event.startDate.getMinutes() === 0 && 
-             event.endDate.getHours() === 23 && 
-             event.endDate.getMinutes() === 59;
-    } catch (error) {
-      console.error('Error al verificar si es evento de todo el día:', error);
-      return false;
-    }
-  }, [event.startDate, event.endDate]);
-  
+  // Validar fechas antes de usarlas  
   const isMultiDay = useMemo(() => {
     try {
       return !isSameDay(event.startDate, event.endDate);
@@ -119,25 +145,28 @@ export function CalendarEvent({
     }
   }, [event.startDate, event.endDate]);
 
+  // Formatear la fecha en formato local
+  const formatLocalDate = (date: Date) => {
+    return date.toLocaleDateString('es-CL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
   const getTooltipText = () => {
     let text = event.name;
-    if (view === 'month') {
-      if (!isAllDayOrTask && !isMultiDay) { 
-        text += `\n${formattedTime(event.startDate)} - ${formattedTime(event.endDate)}`;
-      } else if (isMultiDay) {
-        text += `\n${format(event.startDate, 'MMM d')} - ${format(event.endDate, 'MMM d')}`;
-      } else { 
-         text += `\n${format(event.startDate, 'MMM d')}`;
-      }
-    } else { 
-      text += `\n${format(event.startDate, 'MMM d')}`;
-      if (isMultiDay) {
-        text += ` - ${format(event.endDate, 'MMM d')}`;
-      }
+    
+    if (isMultiDay) {
+      text += `\nDel ${formatLocalDate(event.startDate)} al ${formatLocalDate(event.endDate)}`;
+    } else {
+      text += `\n${formatLocalDate(event.startDate)}`;
     }
+    
     if (event.description) {
-      text += `\n${event.description}`;
+      text += `\n\n${event.description}`;
     }
+    
     return text;
   };
 
@@ -152,18 +181,21 @@ export function CalendarEvent({
         "bg-card dark:bg-[hsl(240,5%,12%)] text-card-foreground", 
         "border border-border/60", 
         "border-l-4", 
-        "p-1.5 rounded-md text-xs overflow-hidden shadow-sm hover:shadow-md",
-        isDragging ? "shadow-2xl" : "hover:shadow-md"
+        "p-1.5 rounded-md text-xs overflow-hidden shadow-sm hover:shadow-md relative",
+        isDragging ? "shadow-2xl" : "hover:shadow-md",
+        isOver ? "ring-2 ring-primary ring-offset-1" : ""
       )}
       onClick={handleClick}
       title={getTooltipText()}
       data-calendar-event="true" // Keep this for event click detection in parent
     >
       <div className="font-semibold truncate">{event.name}</div>
-      {view === 'month' && !isAllDayOrTask && !isMultiDay && ( 
-         <div className="truncate opacity-80">{formattedTime(event.startDate)}</div>
+      {isMultiDay && (
+        <div className="text-xs opacity-80 truncate">
+          {formatLocalDate(event.startDate)} - {formatLocalDate(event.endDate)}
+        </div>
       )}
-      {(view === 'week' || view === 'day') && event.description && (
+      {!isMultiDay && view !== 'month' && event.description && (
         <p className="text-xs truncate opacity-75 mt-0.5">{event.description}</p>
       )}
     </div>

@@ -11,12 +11,12 @@ import {
   endOfDay
 } from '@/lib/calendar-utils';
 import { cn } from '@/lib/utils';
+import { useDroppable } from '@dnd-kit/core';
 
 interface WeekViewProps {
   currentDate: Date;
   events: EventType[];
   onEventClick: (event: EventType) => void;
-  onDayCellClick: (date: Date, view: 'week') => void;
   weekStartsOn?: 0 | 1;
   enableDragAndDrop?: boolean;
   enableResizing?: boolean;
@@ -26,16 +26,11 @@ export function WeekView({
   currentDate,
   events,
   onEventClick,
-  onDayCellClick,
   weekStartsOn = 0,
   enableDragAndDrop,
   enableResizing,
 }: WeekViewProps) {
   const days = getDaysInWeek(currentDate, weekStartsOn);
-
-  const handleDayColumnClick = (day: Date) => {
-    onDayCellClick(startOfDay(day), 'week');
-  };
 
   const getEventsForDay = (day: Date) => {
     const currentViewDayStart = startOfDay(day);
@@ -45,7 +40,17 @@ export function WeekView({
         const eventEndDay = startOfDay(event.endDate); // Compare start of day for multi-day events
         return (eventStartDay <= currentViewDayStart && eventEndDay >= currentViewDayStart);
       })
-      .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+      .sort((a, b) => {
+        // Si ambos eventos tienen displayOrder, ordenar por ese campo
+        if (a.displayOrder !== undefined && b.displayOrder !== undefined) {
+          return a.displayOrder - b.displayOrder;
+        }
+        // Si solo uno tiene displayOrder, priorizarlo
+        if (a.displayOrder !== undefined) return -1;
+        if (b.displayOrder !== undefined) return 1;
+        // De lo contrario, ordenar por fecha de inicio como fallback
+        return a.startDate.getTime() - b.startDate.getTime();
+      });
   };
 
   return (
@@ -72,14 +77,27 @@ export function WeekView({
       <div className="grid grid-cols-7 flex-grow overflow-auto">
         {days.map(day => {
           const dayEvents = getEventsForDay(day);
+          
+          // Configuración del área droppable para este día
+          const { setNodeRef, isOver } = useDroppable({
+            id: day.toISOString(),
+            data: {
+              type: 'day-column',
+              accepts: ['event'],
+              date: day
+            },
+            disabled: !enableDragAndDrop,
+          });
+          
           return (
             <div 
+              ref={setNodeRef}
               key={day.toISOString()} 
               className={cn(
-                "border-r border-border last:border-r-0 p-1.5 space-y-1.5 overflow-y-auto min-h-[calc(100vh-220px)] cursor-pointer hover:bg-secondary/20 transition-colors",
-                isToday(day) && "bg-primary/5"
+                "border-r border-border last:border-r-0 p-1.5 space-y-1.5 overflow-y-auto min-h-[calc(100vh-220px)] transition-colors relative",
+                isToday(day) && "bg-primary/5",
+                isOver && enableDragAndDrop && "bg-secondary/30 ring-2 ring-primary/30" // Resaltar cuando se está arrastrando algo encima
               )}
-              onClick={() => handleDayColumnClick(day)}
             >
               {dayEvents.length > 0 ? (
                 dayEvents.map(event => (
@@ -95,6 +113,14 @@ export function WeekView({
                 ))
               ) : (
                 <div className="text-center text-xs text-muted-foreground pt-2">Vacío</div>
+              )}
+              
+              {/* Área invisible para que todo el espacio sea droppable, no solo donde hay eventos */}
+              {enableDragAndDrop && (
+                <div 
+                  className="absolute inset-0 pointer-events-none" 
+                  aria-hidden="true"
+                />
               )}
             </div>
           );

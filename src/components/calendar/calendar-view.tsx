@@ -12,7 +12,6 @@ interface CalendarViewProps {
   events: EventType[];
   currentView: ViewOption;
   onEventClick: (event: EventType) => void;
-  onDayCellClick: (date: Date, viewContext: ViewOption) => void;
   onEventDrop?: (eventId: string, newStartDate: Date, newEndDate: Date) => void;
   onEventResize?: (eventId: string, newStartDate: Date, newEndDate: Date) => void;
   enableDragAndDrop?: boolean;
@@ -25,19 +24,12 @@ export function CalendarView({
   events,
   currentView,
   onEventClick,
-  onDayCellClick,
   onEventDrop,
   onEventResize,
   enableDragAndDrop = true,
   enableResizing = true,
   weekStartsOn = 0,
 }: CalendarViewProps) {
-
-  const handleDayCellWrapper = (date: Date) => {
-    // For month view, date already represents the day.
-    // Ensure it's start of day for consistency when creating new events.
-    onDayCellClick(startOfDay(date), currentView);
-  };
 
   return (
     <div className="h-full flex flex-col">
@@ -46,7 +38,6 @@ export function CalendarView({
           currentDate={currentDate}
           events={events}
           onEventClick={onEventClick}
-          onDayCellClick={handleDayCellWrapper} // Month view clicks are for a whole day
           weekStartsOn={weekStartsOn}
           enableDragAndDrop={enableDragAndDrop}
           enableResizing={enableResizing}
@@ -57,7 +48,6 @@ export function CalendarView({
           currentDate={currentDate}
           events={events}
           onEventClick={onEventClick}
-          onDayCellClick={(date) => onDayCellClick(date, 'week')} // Week view clicks are for a whole day
           weekStartsOn={weekStartsOn}
           enableDragAndDrop={enableDragAndDrop}
           enableResizing={enableResizing}
@@ -68,7 +58,6 @@ export function CalendarView({
           currentDate={currentDate}
           events={events}
           onEventClick={onEventClick}
-          onDayCellClick={(date) => onDayCellClick(date, 'day')} // Day view clicks are for the whole day
           enableDragAndDrop={enableDragAndDrop}
           enableResizing={enableResizing}
         />

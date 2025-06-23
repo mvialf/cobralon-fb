@@ -32,8 +32,17 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { 
   Check, 
   ChevronsUpDown, 
-  Loader2 
+  Loader2,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Plus,
+  Trash2,
+  ChevronDown,
+  CalendarIcon,
+  FilePlus,
 } from 'lucide-react';
+import { CheckList, type CheckListItem } from "@/components/ui/check-list";
 import { cn } from '@/lib/utils';
 import {
   Command,
@@ -63,6 +72,15 @@ const formSchema = z.object({
     required_error: 'La fecha de solicitud es obligatoria',
   }),
   afterSalesStatus: z.enum(afterSalesStatusOptions).optional(),
+  checklist: z.array(
+    z.object({
+      id: z.string(),
+      description: z.string(),
+      isCompleted: z.boolean(),
+      createdAt: z.date().optional(),
+      completedAt: z.date().optional(),
+    })
+  ).optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -71,6 +89,7 @@ export default function NewAfterSalePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [selectedProject, setSelectedProject] = useState<any>(null);
+  const [checklistItems, setChecklistItems] = useState<CheckListItem[]>([]);
 
   // Obtener la lista de proyectos
   const { data: projects = [], isLoading: isLoadingProjects } = useQuery({
@@ -86,19 +105,31 @@ export default function NewAfterSalePage() {
       description: '',
       entryDate: new Date(),
       afterSalesStatus: 'Ingresada',
+      checklist: [],
     },
   });
+  
+  const { setValue } = form;
 
   // Mutación para crear una nueva postventa
   const createAfterSaleMutation = useMutation({
     mutationFn: async (data: FormValues) => {
+      // Transformar las tareas al formato TaskItem
+      const tasks = (data.checklist || []).map(task => ({
+        id: task.id,
+        description: task.description,
+        isCompleted: task.isCompleted,
+        createdAt: task.createdAt || new Date(),
+        completedAt: task.isCompleted ? task.completedAt || new Date() : undefined
+      }));
+
       // Crear el objeto de postventa
       const afterSaleData = {
         projectId: data.projectId,
         description: data.description,
         entryDate: data.entryDate,
         afterSalesStatus: data.afterSalesStatus || 'Ingresada' as const,
-        tasks: []
+        tasks: tasks,
         // No incluir resolutionDate inicialmente
       };
 
@@ -181,7 +212,20 @@ export default function NewAfterSalePage() {
                             {field.value
                               ? (() => {
                                   const project = projects.find((p) => p.id === field.value);
-                                  return project?.projectNumber || `Proyecto ${field.value.substring(0, 6)}`;
+                                  if (!project) return `Proyecto ${field.value.substring(0, 6)}`;
+                                  
+                                  const displayClientName = project.clientName?.trim() || 'Cliente no especificado';
+                                  const glosa = project.glosa?.trim();
+                                  const showGlosa = glosa && glosa !== displayClientName;
+                                  
+                                  return (
+                                    <span className="text-left">
+                                      {project.projectNumber} - {displayClientName}
+                                      {showGlosa && (
+                                        <span className="text-muted-foreground"> - {glosa}</span>
+                                      )}
+                                    </span>
+                                  );
                                 })()
                               : "Seleccionar proyecto..."}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -219,7 +263,7 @@ export default function NewAfterSalePage() {
                                     <Check
                                       className={cn(
                                         "mr-2 h-4 w-4",
-                                        project.id === field.value
+                                        project.id  === field.value
                                           ? "opacity-100"
                                           : "opacity-0"
                                       )}
@@ -298,6 +342,48 @@ export default function NewAfterSalePage() {
               />
             </div>
 
+            {/* Lista de verificación */}
+            <FormField
+              control={form.control}
+              name="checklist"
+              render={({ field }) => (
+                <FormItem>
+                  <CheckList
+                    items={field.value || []}
+                    onItemToggle={(id, completed) => {
+                      const updatedItems = (field.value || []).map(item =>
+                        item.id === id 
+                          ? { 
+                              ...item, 
+                              isCompleted: completed,
+                              completedAt: completed ? new Date() : undefined 
+                            } 
+                          : item
+                      );
+                      field.onChange(updatedItems);
+                    }}
+                    onAddItem={(text) => {
+                      const newItem: CheckListItem = {
+                        id: Date.now().toString(),
+                        description: text,
+                        isCompleted: false,
+                        createdAt: new Date()
+                      };
+                      const updatedItems = [...(field.value || []), newItem];
+                      field.onChange(updatedItems);
+                    }}
+                    onItemDelete={(id) => {
+                      const updatedItems = (field.value || []).filter(item => item.id !== id);
+                      field.onChange(updatedItems);
+                    }}
+                    title="Tareas"
+                    className="mt-4"
+                  />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             {/* Descripción Detallada */}
             <FormField
               control={form.control}
@@ -308,7 +394,6 @@ export default function NewAfterSalePage() {
                   <FormControl>
                     <Textarea
                       placeholder="Describa con el mayor detalle posible el problema o solicitud..."
-                      className="min-h-[120px]"
                       {...field}
                     />
                   </FormControl>
@@ -326,36 +411,36 @@ export default function NewAfterSalePage() {
               >
                 Cancelar
               </Button>
-              <Button
-                type="submit"
-                disabled={createAfterSaleMutation.isPending}
-              >
-                {createAfterSaleMutation.isPending ? (
+                <Button
+                  type="submit"
+                  disabled={createAfterSaleMutation.isPending}
+                >
+                  {createAfterSaleMutation.isPending ? (
                   <>
-                    <span className="mr-2 h-4 w-4 animate-spin">
-                      <svg className="h-4 w-4" viewBox="0 0 24 24">
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                          fill="none"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
-                      </svg>
-                    </span>
+                      <span className="mr-2 h-4 w-4 animate-spin">
+                        <svg className="h-4 w-4" viewBox="0 0 24 24">
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                            fill="none"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          />
+                        </svg>
+                      </span>
                     Guardando...
                   </>
-                ) : (
+                  ) : (
                   'Guardar'
-                )}
-              </Button>
+                  )}
+                </Button>
             </div>
           </form>
         </Form>

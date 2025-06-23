@@ -18,7 +18,6 @@ interface MonthViewProps {
   currentDate: Date;
   events: EventType[];
   onEventClick: (event: EventType) => void;
-  onDayCellClick: (date: Date) => void;
   weekStartsOn?: 0 | 1;
   enableDragAndDrop?: boolean;
   enableResizing?: boolean;
@@ -28,7 +27,6 @@ export function MonthView({
   currentDate, 
   events, 
   onEventClick, 
-  onDayCellClick, 
   weekStartsOn = 0, // Default to Sunday
   enableDragAndDrop,
   enableResizing,
@@ -75,7 +73,7 @@ export function MonthView({
           isOver && "bg-accent/20",
           (index + 1) % 7 === 0 && "border-r-0" // No right border for last column
         )}
-        onClick={() => onDayCellClick(day)}
+
       >
         <span
           className={cn(

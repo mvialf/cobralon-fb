@@ -122,31 +122,22 @@ export default function CalReactAppPage() {
     setFilterTerm(term);
   };
 
-  const handleAddEventClick = () => {
+  const handleAddEventClick = (type?: 'Proyecto' | 'Postventa' | 'Visita') => {
     const now = new Date();
-    setSelectedEvent({ 
+    setSelectedEvent({
       name: '',
-      startDate: startOfDay(now), 
-      endDate: endOfDay(now), 
+      startDate: startOfDay(now), // Usar startOfDay para tener una fecha de inicio consistente
+      endDate: endOfDay(now), // Usar endOfDay para tener una fecha de fin consistente
       description: '',
-      color: 'hsl(var(--primary))' 
+      color: 'hsl(var(--primary))', // Incluir el color por defecto
+      // Incluimos el tipo si fue preseleccionado
+      ...(type && { type })
     });
     setIsModalOpen(true);
   };
 
   const handleEventClick = (event: EventType) => {
     setSelectedEvent(event);
-    setIsModalOpen(true);
-  };
-
-  const handleDayCellClick = (date: Date, viewContext: ViewOption) => {
-    setSelectedEvent({
-      name: '',
-      startDate: startOfDay(date),
-      endDate: endOfDay(date),
-      description: '',
-      color: 'hsl(var(--primary))',
-    });
     setIsModalOpen(true);
   };
 
@@ -361,7 +352,6 @@ export default function CalReactAppPage() {
               events={filteredEvents}
               currentView={currentView}
               onEventClick={handleEventClick}
-              onDayCellClick={handleDayCellClick}
               onEventResize={handleEventResize}
               enableDragAndDrop={true} 
               enableResizing={true} 
@@ -377,6 +367,7 @@ export default function CalReactAppPage() {
             onClose={handleModalClose}
             onSave={handleModalSave}
             onDelete={selectedEvent && 'id' in selectedEvent ? handleModalDelete : undefined}
+            preSelectedType={selectedEvent?.type as 'Proyecto' | 'Postventa' | 'Visita' | undefined}
           />
         )}
       </div>

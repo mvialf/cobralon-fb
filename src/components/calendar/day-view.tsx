@@ -15,7 +15,6 @@ interface DayViewProps {
   currentDate: Date;
   events: EventType[];
   onEventClick: (event: EventType) => void;
-  onDayCellClick: (date: Date, view: 'day') => void;
   enableDragAndDrop?: boolean;
   enableResizing?: boolean;
 }
@@ -24,14 +23,9 @@ export function DayView({
   currentDate,
   events,
   onEventClick,
-  onDayCellClick,
   enableDragAndDrop,
   enableResizing,
 }: DayViewProps) {
-  const handleDayColumnClick = () => {
-    // For day view, clicking anywhere on the day column triggers event creation for this day
-    onDayCellClick(startOfDay(currentDate), 'day');
-  };
   
   const dayEvents = events.filter(event => {
       const eventStartDay = startOfDay(event.startDate);
@@ -54,8 +48,7 @@ export function DayView({
 
       {/* Body: Events List */}
       <div 
-        className="flex-grow overflow-auto p-2 space-y-2 cursor-pointer hover:bg-secondary/20 transition-colors"
-        onClick={handleDayColumnClick}
+        className="flex-grow overflow-auto p-2 space-y-2 transition-colors"
       >
         {dayEvents.length > 0 ? (
           dayEvents.map(event => (
