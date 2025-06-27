@@ -15,7 +15,7 @@ import {
   setDoc
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import type { ProjectType, ProjectDocument, ProjectImportData } from '@/types/project';
+import type { ProjectType, ProjectDocument, ProjectImportData, FormattedAddress } from '@/types/project';
 import { deletePaymentsForProject } from './paymentService';
 import { deleteAfterSalesForProject } from './afterSalesService';
 
@@ -23,6 +23,25 @@ const PROJECTS_COLLECTION = 'projects';
 
 const projectFromDoc = (docSnapshot: any): ProjectType => {
   const data = docSnapshot.data() as ProjectDocument;
+  
+  // Reconstruir fullAddress a partir de los campos legados si existe
+  let fullAddress: FormattedAddress | undefined;
+  if (data.fullAddress) {
+    // Si fullAddress ya existe en el documento, usarlo directamente
+    fullAddress = data.fullAddress;
+  } else if (data.address) {
+    // Si no existe fullAddress pero sí los campos legados, crear una estructura fullAddress
+    fullAddress = {
+      textoCompleto: data.address,
+      coordenadas: { latitude: 0, longitude: 0 },
+      componentes: {
+        comuna: data.commune || '',
+        region: data.region || '',
+        pais: 'Chile'
+      }
+    };
+  }
+
   return {
     id: docSnapshot.id,
     ...data,
@@ -30,6 +49,7 @@ const projectFromDoc = (docSnapshot: any): ProjectType => {
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
     updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(),
     isPaid: data.isPaid === undefined ? false : data.isPaid, // Default to false if not set
+    fullAddress: fullAddress,
   } as ProjectType;
 };
 
@@ -135,9 +155,6 @@ export const addProject = async (projectData: ProjectImportData | Omit<ProjectTy
     createdAt: createdAtTimestamp,
     updatedAt: serverTimestamp() as Timestamp,
     phone: restOfProjectData.phone || '',
-    address: restOfProjectData.address || '',
-    commune: restOfProjectData.commune || '',
-    region: restOfProjectData.region || 'RM',
     windowsCount: Number(restOfProjectData.windowsCount) || 0,
     squareMeters: Number(restOfProjectData.squareMeters) || 0,
     uninstall: restOfProjectData.uninstall || false,
@@ -146,6 +163,20 @@ export const addProject = async (projectData: ProjectImportData | Omit<ProjectTy
     glosa: restOfProjectData.glosa || '',
     isHidden: restOfProjectData.isHidden || false,
   };
+
+  // Manejar la dirección compleja y mantener compatibilidad con los campos legados
+  if (restOfProjectData.fullAddress) {
+    dataToSave.fullAddress = restOfProjectData.fullAddress;
+    // También actualizar los campos legados para compatibilidad con código anterior
+    dataToSave.address = restOfProjectData.fullAddress.textoCompleto || '';
+    dataToSave.commune = restOfProjectData.fullAddress.componentes?.comuna || '';
+    dataToSave.region = restOfProjectData.fullAddress.componentes?.region || 'RM';
+  } else {
+    // Si no hay fullAddress, usar los campos individuales (para compatibilidad)
+    dataToSave.address = restOfProjectData.address || '';
+    dataToSave.commune = restOfProjectData.commune || '';
+    dataToSave.region = restOfProjectData.region || 'RM';
+  }
 
   let docRef;
   if ('id' in restOfProjectData && restOfProjectData.id) {
@@ -214,9 +245,25 @@ export const updateProject = async (projectId: string, projectData: Partial<Omit
 
   if (projectData.hasOwnProperty('status')) dataToUpdate.status = projectData.status;
   if (projectData.hasOwnProperty('phone')) dataToUpdate.phone = projectData.phone;
-  if (projectData.hasOwnProperty('address')) dataToUpdate.address = projectData.address;
-  if (projectData.hasOwnProperty('commune')) dataToUpdate.commune = projectData.commune;
-  if (projectData.hasOwnProperty('region')) dataToUpdate.region = projectData.region;
+  
+  // Manejar la dirección compleja
+  if (projectData.hasOwnProperty('fullAddress')) {
+    const fullAddress = projectData.fullAddress;
+    dataToUpdate.fullAddress = fullAddress;
+    
+    // Actualizar también los campos legados para mantener compatibilidad
+    if (fullAddress) {
+      dataToUpdate.address = fullAddress.textoCompleto || '';
+      dataToUpdate.commune = fullAddress.componentes?.comuna || '';
+      dataToUpdate.region = fullAddress.componentes?.region || 'RM';
+    }
+  } else {
+    // Si se actualizan los campos individuales, mantener compatibilidad
+    if (projectData.hasOwnProperty('address')) dataToUpdate.address = projectData.address;
+    if (projectData.hasOwnProperty('commune')) dataToUpdate.commune = projectData.commune;
+    if (projectData.hasOwnProperty('region')) dataToUpdate.region = projectData.region;
+  }
+  
   if (projectData.hasOwnProperty('windowsCount')) dataToUpdate.windowsCount = Number(projectData.windowsCount);
   if (projectData.hasOwnProperty('squareMeters')) dataToUpdate.squareMeters = Number(projectData.squareMeters);
   if (projectData.hasOwnProperty('uninstall')) dataToUpdate.uninstall = projectData.uninstall;

@@ -39,6 +39,7 @@ import {
 import { SquarePen, Trash2, PlusCircle, Users, Loader2, GanttChartSquare, DollarSign, FileText } from 'lucide-react';
 import ClientModal from '@/components/client-modal';
 import { useToast } from '@/hooks/use-toast';
+import { normalizeSearchText } from '@/utils/search-utils';
 
 // Skeleton for table rows
 const ClientRowSkeleton = () => (
@@ -147,10 +148,14 @@ export default function ClientsPage() {
     }
   };
 
-  const filteredClients = clients.filter(client =>
-    client.name.toLowerCase().includes(filterText.toLowerCase()) ||
-    (client.email && client.email.toLowerCase().includes(filterText.toLowerCase()))
-  );
+  const filteredClients = clients.filter(client => {
+    const searchTerm = normalizeSearchText(filterText);
+    const clientName = normalizeSearchText(client.name);
+    const clientEmail = client.email ? normalizeSearchText(client.email) : '';
+    
+    return clientName.includes(searchTerm) || 
+           (client.email && clientEmail.includes(searchTerm));
+  });
 
   if (isError) {
     return (

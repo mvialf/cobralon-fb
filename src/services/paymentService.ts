@@ -15,7 +15,8 @@ import {
   getDoc,
   writeBatch,
   setDoc,
-  collectionGroup
+  collectionGroup,
+  Firestore
 } from 'firebase/firestore';
 import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { db } from '@/lib/firebase/client';
@@ -23,7 +24,22 @@ import type { Payment, PaymentDocument, PaymentImportData, PaymentMethod, Paymen
 import type { ProjectDocument } from '@/types/project'; // Import ProjectDocument for typing
 
 const PAYMENTS_COLLECTION = 'payments';
+const INSTALLMENTS_COLLECTION = 'installments'; // Colección para almacenar cuotas
 const PROJECTS_COLLECTION = 'projects'; // Define projects collection name
+
+// Interfaz para las cuotas
+export interface Installment {
+  date: Date;
+  amount: number;
+  isPaid: boolean;
+  paymentId: string;
+  installmentNumber: number;
+  totalInstallments: number;
+  projectId?: string;
+  id?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
 
 const paymentFromDoc = (docSnapshot: any): Payment => {
   const data = docSnapshot.data() as PaymentDocument;
@@ -63,7 +79,7 @@ export const getPaymentById = async (paymentId: string): Promise<Payment | null>
   return null;
 };
 
-export const addPayment = async (paymentData: PaymentImportData | Omit<Payment, 'id' | 'updatedAt'>): Promise<Payment> => {
+export const addPayment = async (paymentData: PaymentImportData | Omit<Payment, 'id' | 'updatedAt'>, firestore = db): Promise<Payment> => {
   
   let createdAtTimestamp: Timestamp;
   if (paymentData.createdAt) {
@@ -104,79 +120,114 @@ export const addPayment = async (paymentData: PaymentImportData | Omit<Payment, 
 
   const dataToSave: { [key: string]: any } = { 
     projectId: paymentData.projectId,
+    amount: paymentData.amount,
     date: paymentDateTimestamp,
     createdAt: createdAtTimestamp,
-    updatedAt: serverTimestamp() as Timestamp,
-    isAdjustment: paymentData.isAdjustment, 
+    updatedAt: serverTimestamp(),
+    isAdjustment: paymentData.isAdjustment || false,
   };
 
-  const optionalFields: Array<keyof Omit<PaymentImportData, 'id' | 'projectId' | 'date' | 'createdAt' | 'isAdjustment'>> = [
-    'amount', 
-    'paymentMethod', 
-    'paymentType', 
-    'notes'
-  ];
-  
-  // Manejar específicamente el campo installments sólo para tarjeta de crédito
-  if ('paymentMethod' in paymentData && paymentData.paymentMethod === 'tarjeta de crédito' && 
-      'installments' in paymentData && paymentData.installments !== undefined) {
-    dataToSave.installments = Number(paymentData.installments);
+  // Añadir campos opcionales
+  if (paymentData.paymentMethod) {
+    dataToSave.paymentMethod = paymentData.paymentMethod;
+  }
+  if (paymentData.paymentType) {
+    dataToSave.paymentType = paymentData.paymentType;
+  }
+  if (paymentData.notes) {
+    dataToSave.notes = paymentData.notes;
+  }
+  // Guardar el número de cuotas si existe
+  if (paymentData.installments && paymentData.installments > 0) {
+    dataToSave.installments = paymentData.installments;
   }
 
-  optionalFields.forEach(field => {
-    const key = field as keyof typeof paymentData; 
-    if (paymentData[key] !== undefined) {
-      dataToSave[field] = paymentData[key];
+  try {
+    // Validar que exista el projectId
+    if (!paymentData.projectId) {
+      throw new Error("Project ID is required for addPayment service.");
     }
-  });
 
-  let docRef;
-  if ('id' in paymentData && paymentData.id) {
-    docRef = doc(db, PAYMENTS_COLLECTION, paymentData.id);
-    await setDoc(docRef, dataToSave as Omit<PaymentDocument, 'id'>); 
-  } else {
-    const collectionRef = collection(db, PAYMENTS_COLLECTION);
-    docRef = await addDoc(collectionRef, dataToSave as Omit<PaymentDocument, 'id'>);
-  }
-  
-  const newDocSnap = await getDoc(docRef);
-  const newPayment = paymentFromDoc(newDocSnap);
+    // Obtener referencia al proyecto y actualizar saldo
+    const projectRef = doc(firestore, PROJECTS_COLLECTION, paymentData.projectId);
+    const projectSnapshot = await getDoc(projectRef);
 
-  // Update project balance
-  if (newPayment.projectId && newPayment.amount && newPayment.amount > 0 && !newPayment.isAdjustment) {
-    const projectDocRef = doc(db, PROJECTS_COLLECTION, newPayment.projectId);
-    try {
-        const projectSnap = await getDoc(projectDocRef);
-        if (projectSnap.exists()) {
-            const projectData = projectSnap.data() as ProjectDocument;
-            const currentBalance = projectData.balance ?? (projectData.total ?? 0); // Use total if balance is undefined
-            const newBalance = currentBalance - newPayment.amount;
-            
-            const projectUpdateData: { balance: number, updatedAt: Timestamp, isPaid?: boolean } = { 
-              balance: newBalance, 
-              updatedAt: serverTimestamp() as Timestamp 
-            };
-
-            // Check if project is now fully paid
-            if (newBalance <= 0) {
-              projectUpdateData.isPaid = true;
-            } else if (projectData.isPaid && newBalance > 0) { 
-              // If it was marked as paid, but new balance is > 0 (e.g. adjustment or error correction), mark as not paid
-              projectUpdateData.isPaid = false;
-            }
-            
-            await updateDoc(projectDocRef, projectUpdateData);
-            console.log(`Project ${newPayment.projectId} balance updated to ${newBalance}. isPaid: ${projectUpdateData.isPaid}`);
-        } else {
-            console.warn(`Project with ID ${newPayment.projectId} not found for balance update.`);
-        }
-    } catch (error) {
-        console.error(`Error updating project balance for project ${newPayment.projectId}:`, error);
-        // Consider how to handle this error, e.g., log, notify user, or attempt retry.
+    if (!projectSnapshot.exists()) {
+      throw new Error(`Project with ID ${paymentData.projectId} does not exist.`);
     }
-  }
 
-  return newPayment;
+    const projectData = projectSnapshot.data() as ProjectDocument;
+    const currentBalance = projectData.balance || 0;
+
+    // Calcular nuevo saldo
+    let newBalance = currentBalance;
+    const paymentAmount = paymentData.amount || 0;
+
+    if (paymentData.isAdjustment) {
+      // Para ajustes, restar el monto
+      newBalance -= paymentAmount;
+    } else {
+      // Para pagos normales, sumar el monto
+      newBalance += paymentAmount;
+    }
+
+    // Usar batch para actualizar proyecto y añadir pago
+    const batch = writeBatch(firestore);
+
+    // Actualizar saldo del proyecto
+    batch.update(projectRef, {
+      balance: newBalance,
+      updatedAt: serverTimestamp()
+    });
+
+    // Añadir nuevo pago
+    const paymentCollectionRef = collection(firestore, PAYMENTS_COLLECTION);
+    const newPaymentRef = doc(paymentCollectionRef);
+    batch.set(newPaymentRef, dataToSave);
+
+    // Ejecutar batch
+    await batch.commit();
+
+    // Obtener datos del nuevo pago
+    const paymentDoc = await getDoc(newPaymentRef);
+    const savedPayment = paymentFromDoc(paymentDoc);
+
+    console.log(`Pago añadido exitosamente. Nuevo saldo del proyecto ${paymentData.projectId}: ${newBalance}`);
+
+    // Si el pago tiene cuotas, guardarlas en Firestore como documentos separados
+    if (savedPayment.installments && savedPayment.installments > 1) {
+      console.log(`Pago con ${savedPayment.installments} cuotas detectado. Guardando cuotas en Firestore...`);
+      
+      // Generar cuotas para este pago
+      const installments = generateInstallments(savedPayment);
+      
+      // Crear batch para guardar cuotas
+      const installmentsBatch = writeBatch(firestore);
+      
+      // Para cada cuota, crear un documento en Firestore
+      installments.forEach(installment => {
+        const installmentId = `${savedPayment.id}_cuota_${installment.installmentNumber}`;
+        const installmentRef = doc(firestore, INSTALLMENTS_COLLECTION, installmentId);
+        
+        installmentsBatch.set(installmentRef, {
+          ...installment,
+          date: Timestamp.fromDate(new Date(installment.date)),
+          projectId: savedPayment.projectId,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      });
+      
+      // Guardar todas las cuotas
+      await installmentsBatch.commit();
+      console.log(`Se guardaron ${installments.length} cuotas en Firestore para el pago ${savedPayment.id}`);
+    }
+
+    return savedPayment;
+  } catch (error) {
+    console.error("Error adding payment:", error);
+    throw error;
+  }
 };
 
 export const updatePayment = async (paymentId: string, paymentData: Partial<Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> => {
@@ -261,19 +312,12 @@ export const deletePaymentsForProject = async (projectId: string): Promise<void>
   await batch.commit();
 };
 
-interface Installment {
-  date: Date;
-  amount: number;
-  isPaid: boolean;
-  paymentId: string;
-  installmentNumber: number;
-  totalInstallments: number;
-}
+// La interfaz Installment ya está definida al inicio del archivo
 
 /**
  * Genera todas las cuotas para un pago a plazos
  */
-const generateInstallments = (payment: Payment): Installment[] => {
+export const generateInstallments = (payment: Payment): Installment[] => {
   if (!payment.amount || !payment.installments || !payment.date) {
     return [];
   }
@@ -289,7 +333,8 @@ const generateInstallments = (payment: Payment): Installment[] => {
     isPaid: true, // El primer pago se considera pagado
     paymentId: payment.id,
     installmentNumber: 1,
-    totalInstallments: payment.installments
+    totalInstallments: payment.installments,
+    projectId: payment.projectId
   });
 
   // Generar las cuotas restantes
@@ -303,12 +348,160 @@ const generateInstallments = (payment: Payment): Installment[] => {
       isPaid: false, // Las cuotas futuras no están pagadas
       paymentId: payment.id,
       installmentNumber: i + 1,
-      totalInstallments: payment.installments
+      totalInstallments: payment.installments,
+      projectId: payment.projectId
     });
   }
 
   return installments;
 };
+
+/**
+ * Guarda las cuotas en Firestore como documentos independientes
+ * @param payment El pago del que se generarán las cuotas
+ * @param firestore Instancia de Firestore
+ * @returns Promesa que se resuelve con las cuotas guardadas
+ */
+export const saveInstallmentsToFirestore = async (payment: Payment, firestore = db): Promise<Installment[]> => {
+  try {
+    console.log(`Guardando cuotas para pago ${payment.id}...`);
+    
+    // 1. Generar las cuotas
+    const installments = generateInstallments(payment);
+    if (installments.length === 0) {
+      console.log('No hay cuotas para guardar');
+      return [];
+    }
+    
+    // 2. Crear lote de escritura para operaciones en batch
+    const batch = writeBatch(firestore);
+    
+    // 3. Para cada cuota, crear un documento en la colección de cuotas
+    installments.forEach(installment => {
+      const installmentId = `${payment.id}_cuota_${installment.installmentNumber}`;
+      const installmentRef = doc(firestore, INSTALLMENTS_COLLECTION, installmentId);
+      
+      // Datos a guardar para la cuota
+      const installmentData = {
+        ...installment,
+        date: Timestamp.fromDate(new Date(installment.date)),
+        projectId: payment.projectId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+      
+      batch.set(installmentRef, installmentData);
+    });
+    
+    // 4. Ejecutar el batch
+    await batch.commit();
+    console.log(`Se guardaron ${installments.length} cuotas en Firestore`);
+    
+    return installments;
+  } catch (error) {
+    console.error('Error guardando cuotas en Firestore:', error);
+    throw error;
+  }
+};
+
+/**
+ * Actualiza el estado de una cuota específica
+ * @param installmentId ID de la cuota
+ * @param isPaid Estado de pago (true = pagado, false = pendiente)
+ * @param firestore Instancia de Firestore
+ * @returns Promesa que se resuelve cuando se actualiza el estado
+ */
+export const updateInstallmentStatus = async (
+  installmentId: string, 
+  isPaid: boolean, 
+  firestore = db
+): Promise<boolean> => {
+  try {
+    const installmentRef = doc(firestore, INSTALLMENTS_COLLECTION, installmentId);
+    await updateDoc(installmentRef, {
+      isPaid,
+      updatedAt: serverTimestamp()
+    });
+    return true;
+  } catch (error) {
+    console.error(`Error actualizando estado de cuota ${installmentId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene todas las cuotas almacenadas en Firestore
+ * @param firestore Instancia de Firestore
+ * @returns Promesa que se resuelve con un array de cuotas
+ */
+export const getAllInstallments = async (firestore = db): Promise<Installment[]> => {
+  try {
+    const installmentsRef = collection(firestore, INSTALLMENTS_COLLECTION);
+    const q = query(installmentsRef, orderBy('date', 'asc'));
+    const snapshot = await getDocs(q);
+    
+    return snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        date: data.date?.toDate() || new Date(),
+        amount: data.amount || 0,
+        isPaid: data.isPaid || false,
+        paymentId: data.paymentId || '',
+        installmentNumber: data.installmentNumber || 0,
+        totalInstallments: data.totalInstallments || 0,
+        projectId: data.projectId,
+        createdAt: data.createdAt?.toDate(),
+        updatedAt: data.updatedAt?.toDate()
+      } as Installment;
+    });
+  } catch (error) {
+    console.error('Error obteniendo cuotas:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene las cuotas asociadas a un pago específico
+ * @param paymentId ID del pago
+ * @param firestore Instancia de Firestore
+ * @returns Promesa que se resuelve con un array de cuotas del pago
+ */
+export const getInstallmentsByPayment = async (
+  paymentId: string, 
+  firestore = db
+): Promise<Installment[]> => {
+  try {
+    const installmentsRef = collection(firestore, INSTALLMENTS_COLLECTION);
+    const q = query(
+      installmentsRef, 
+      where('paymentId', '==', paymentId),
+      orderBy('installmentNumber', 'asc')
+    );
+    
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        date: data.date?.toDate() || new Date(),
+        amount: data.amount || 0,
+        isPaid: data.isPaid || false,
+        paymentId: data.paymentId || '',
+        installmentNumber: data.installmentNumber || 0,
+        totalInstallments: data.totalInstallments || 0,
+        projectId: data.projectId,
+        createdAt: data.createdAt?.toDate(),
+        updatedAt: data.updatedAt?.toDate()
+      } as Installment;
+    });
+  } catch (error) {
+    console.error(`Error obteniendo cuotas para pago ${paymentId}:`, error);
+    throw error;
+  }
+};
+
+/**
 
 /**
  * Obtiene el total de cuotas pendientes para el mes actual

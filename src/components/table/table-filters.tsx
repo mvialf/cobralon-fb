@@ -5,6 +5,7 @@ import {
   Check 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { commandFilter } from '@/utils/search-utils';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -110,7 +111,7 @@ const TableFilters: React.FC<TableFiltersProps> = ({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[200px] p-0" align="start">
-            <Command>
+            <Command filter={commandFilter}>
               <CommandInput placeholder={`Buscar ${group.name}...`} />
               <CommandEmpty>No se encontraron resultados.</CommandEmpty>
               <CommandGroup>

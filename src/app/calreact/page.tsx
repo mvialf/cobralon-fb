@@ -8,6 +8,7 @@ import { CalendarToolbar } from '@/components/calendar/calendar-toolbar';
 import { db } from '@/lib/firebase/client'; // Importar la instancia db configurada
 import { getEvents, addEvent, updateEvent, deleteEvent } from '@/lib/firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { normalizeSearchText } from '@/utils/search-utils';
 import { startOfDay, endOfDay, isSameDay, parseISO } from '@/lib/calendar-utils';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import {
@@ -100,10 +101,16 @@ export default function CalReactAppPage() {
     if (!filterTerm.trim()) {
       return events;
     }
-    return events.filter(event =>
-      event.name.toLowerCase().includes(filterTerm.toLowerCase()) ||
-      (event.description && event.description.toLowerCase().includes(filterTerm.toLowerCase()))
-    );
+    const searchTerm = normalizeSearchText(filterTerm);
+    return events.filter(event => {
+      const title = normalizeSearchText(event.name);
+      const description = event.description ? normalizeSearchText(event.description) : '';
+      const location = event.location ? normalizeSearchText(event.location) : '';
+      
+      return title.includes(searchTerm) ||
+             description.includes(searchTerm) ||
+             location.includes(searchTerm);
+    });
   }, [events, filterTerm]);
 
   const handleDateChange = (newDate: Date) => {

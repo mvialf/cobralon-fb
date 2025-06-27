@@ -60,6 +60,7 @@ import { GanttChartSquare, DollarSign, FileText, SquarePen, Trash2, PlusCircle, 
 import PaymentModal from '@/components/payment-modal'; 
 import AccountStatementDialog from '@/components/account-statement-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { normalizeSearchText } from '@/utils/search-utils';
 import { cn } from '@/lib/utils';
 
 // Skeleton for table rows
@@ -87,6 +88,7 @@ interface EnrichedProject extends ProjectType {
   clientName?: string;
   totalPayments: number;
   totalPaymentPercentage: number;
+  collect?: boolean;
 }
 
 
@@ -292,15 +294,20 @@ export default function ProjectsPage() {
   };
 
 
-  const filteredProjects = useMemo(() => enrichedProjects.filter(project => {
-    const clientName = project.clientName?.toLowerCase() || '';
-    return (
-      project.projectNumber.toLowerCase().includes(filterText.toLowerCase()) ||
-      clientName.includes(filterText.toLowerCase()) ||
-      (project.glosa && project.glosa.toLowerCase().includes(filterText.toLowerCase())) ||
-      (project.description && project.description.toLowerCase().includes(filterText.toLowerCase()))
-    );
-  }), [enrichedProjects, filterText]);
+  const filteredProjects = useMemo(() => {
+    const searchTerm = normalizeSearchText(filterText);
+    return enrichedProjects.filter(project => {
+      const projectNumber = normalizeSearchText(project.projectNumber);
+      const clientName = project.clientName ? normalizeSearchText(project.clientName) : '';
+      const glosa = project.glosa ? normalizeSearchText(project.glosa) : '';
+      const description = project.description ? normalizeSearchText(project.description) : '';
+      
+      return projectNumber.includes(searchTerm) ||
+             clientName.includes(searchTerm) ||
+             glosa.includes(searchTerm) ||
+             description.includes(searchTerm);
+    });
+  }, [enrichedProjects, filterText]);
 
   const handleSelectAllRows = (checked: boolean) => {
     const newSelectedRows: Record<string, boolean> = {};

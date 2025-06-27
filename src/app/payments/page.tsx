@@ -7,7 +7,8 @@ import { useQuery, useQueryClient as useQueryClientHook, useMutation } from '@ta
 import type { Payment } from '@/types/payment';
 import type { ProjectType } from '@/types/project';
 import type { Client } from '@/types/client';
-import { getAllPayments, deletePayment } from '@/services/paymentService';
+import { getAllPayments, deletePayment, updatePayment } from '@/services/paymentService';
+import { EditPaymentDialog } from '@/components/payments/edit-payment-dialog';
 import { getProjects } from '@/services/projectService';
 import { getClients } from '@/services/clientService';
 import { format as formatDate } from '@/lib/calendar-utils';
@@ -44,6 +45,7 @@ import {
 import { DollarSign, Edit, Trash2, GanttChartSquare, Search, Loader2, CreditCard } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { normalizeSearchText } from '@/utils/search-utils';
 
 const formatCurrency = (amount: number | undefined | null) => {
   if (amount === undefined || amount === null) return 'N/A';
@@ -74,7 +76,9 @@ export default function PaymentsPage() {
 
   const [filterText, setFilterText] = useState('');
   const [paymentToDelete, setPaymentToDelete] = useState<EnrichedPayment | null>(null);
+  const [paymentToEdit, setPaymentToEdit] = useState<EnrichedPayment | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const { data: payments = [], isLoading: isLoadingPayments, isError: isErrorPayments, error: errorPayments } = useQuery<Payment[], Error>({
     queryKey: ['payments'],
@@ -129,12 +133,18 @@ export default function PaymentsPage() {
   }, [payments, projects, clients, isLoadingPayments, isLoadingProjects, isLoadingClients]);
 
   const filteredPayments = useMemo(() => {
-    return enrichedPayments.filter(payment =>
-      payment.projectNumber?.toLowerCase().includes(filterText.toLowerCase()) ||
-      payment.clientName?.toLowerCase().includes(filterText.toLowerCase()) ||
-      payment.paymentType?.toLowerCase().includes(filterText.toLowerCase()) ||
-      payment.paymentMethod?.toLowerCase().includes(filterText.toLowerCase())
-    );
+    const searchTerm = normalizeSearchText(filterText);
+    return enrichedPayments.filter(payment => {
+      const projectNumber = payment.projectNumber ? normalizeSearchText(payment.projectNumber) : '';
+      const clientName = payment.clientName ? normalizeSearchText(payment.clientName) : '';
+      const paymentType = payment.paymentType ? normalizeSearchText(payment.paymentType) : '';
+      const paymentMethod = payment.paymentMethod ? normalizeSearchText(payment.paymentMethod) : '';
+      
+      return projectNumber.includes(searchTerm) ||
+             clientName.includes(searchTerm) ||
+             paymentType.includes(searchTerm) ||
+             paymentMethod.includes(searchTerm);
+    });
   }, [enrichedPayments, filterText]);
 
   const deletePaymentMutation = useMutation({
@@ -166,7 +176,8 @@ export default function PaymentsPage() {
   };
 
   const handleEditPayment = (payment: EnrichedPayment) => {
-    toast({ title: "Próximamente", description: "La edición de pagos estará disponible pronto." });
+    setPaymentToEdit(payment);
+    setIsEditDialogOpen(true);
   };
 
 
@@ -236,9 +247,9 @@ export default function PaymentsPage() {
                         <div>{payment.projectNumber}</div>
                         <div className="text-xs text-muted-foreground">{payment.clientName}</div>
                       </TableCell>
-                      <TableCell className="text-right">{formatCurrency(payment.amount)}</TableCell>
+                      <TableCell className="text-right items-center">{formatCurrency(payment.amount)}</TableCell>
                       <TableCell>{payment.date ? formatDate(payment.date, 'P', { locale: es }) : 'N/A'}</TableCell>
-                      <TableCell className="flex items-center gap-2">
+                      <TableCell className="flex items-center ">
                         {payment.paymentMethod === 'tarjeta de crédito' ? (
                           <>
                             <span>Tarjeta de Crédito</span>
@@ -313,7 +324,15 @@ export default function PaymentsPage() {
           </AlertDialogContent>
         </AlertDialog>
       )}
+
+      {/* Diálogo de edición de pago */}
+      {paymentToEdit && (
+        <EditPaymentDialog
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          payment={paymentToEdit}
+        />
+      )}
     </div>
   );
 }
-

@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -23,7 +22,7 @@ body {
 
     --secondary: 240 5.9% 90%; /* bg-gray-100 (Fondo secundario Light) */
     --secondary-foreground: 240 5.1% 31.8%; /* text-gray-700 */
-    
+
     --muted: 240 5.9% 90%; /* bg-gray-100 */
     --muted-foreground: 240 4.8% 46.1%; /* text-gray-500 (Texto secundario Light) */
 
@@ -59,14 +58,14 @@ body {
     --chart-5: 27 87% 67%;
 
     /* Sidebar specific colors - Light Mode */
-    --sidebar-background: 240 5.9% 96%; 
-    --sidebar-foreground: 240 10% 3.9%; 
-    --sidebar-primary: 221.2 83.2% 50.3%; 
+    --sidebar-background: 216 29% 17%;
+    --sidebar-foreground: 240 10% 3.9%;
+    --sidebar-primary: 221.2 83.2% 50.3%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 262.1 83.3% 54.8%; 
+    --sidebar-accent: 262.1 83.3% 54.8%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 240 5.9% 90%; 
-    --sidebar-ring: 221.2 83.2% 53.3%; 
+    --sidebar-border: 240 5.9% 90%;
+    --sidebar-ring: 221.2 83.2% 53.3%;
   }
 
   .dark {
@@ -94,22 +93,9 @@ body {
     --destructive: 0 92.9% 65.1%; /* dark:bg-red-400 (Error Dark) */
     --destructive-foreground: 0 0% 98%; /* dark:text-white */
 
-    --border: 240 4.4% 26.1%; 
-    --input: 240 4.4% 26.1%; 
-    --ring: 217.2 91.2% 59.8%; 
-
-    /* Custom colors - Dark Theme */
-    --yellow: 55 97% 88%; /* dark:bg-yellow-100 */
-    --yellow-foreground: 28 73% 26%; /* dark:bg-yellow-900 */
-    --Sky: 201 94% 86%; /* dark:bg-Sky-200 */
-    --Sky-foreground: 204 80% 16%; /* dark:bg-Sky-950 */
-    --orange: 27 96% 61%; /* dark:bg-orange-400 */
-    --orange-foreground: 0 0% 98%; /* dark:text-white */
-    --brown: 142 69% 58%; /* dark:bg-orange-900 */
-    --brown-foreground: 0 0% 98%; /* dark:text-white */
-    --complete: 142 69% 58%; /* dark:bg-green-400 */
-    --complete-foreground: 0 0% 98%; /* dark:text-white */
-
+    --border: 240 4.4% 26.1%;
+    --input: 240 4.4% 26.1%;
+    --ring: 217.2 91.2% 59.8%;
 
     /* Chart colors for dark theme */
     --chart-1: 220 70% 50%;
@@ -119,13 +105,13 @@ body {
     --chart-5: 340 75% 55%;
 
     /* Sidebar specific colors for dark theme */
-    --sidebar-background: 240 6% 12%; 
+    --sidebar-background: 240 6% 12%;
     --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 217.2 91.2% 56.8%; 
+    --sidebar-primary: 217.2 91.2% 56.8%;
     --sidebar-primary-foreground: 0 0% 98%; /* Ajustado para consistencia si es necesario */
-    --sidebar-accent: 259.1 91.1% 62.3%; 
+    --sidebar-accent: 259.1 91.1% 62.3%;
     --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 240 5.1% 22%; 
+    --sidebar-border: 240 5.1% 22%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
@@ -138,4 +124,3 @@ body {
     @apply bg-background text-foreground;
   }
 }
-

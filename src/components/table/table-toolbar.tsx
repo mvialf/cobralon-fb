@@ -1,5 +1,6 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { normalizeSearchText } from '@/utils/search-utils';
 import { Search } from 'lucide-react';
 import { Input } from '../ui/input';
 
@@ -18,7 +19,11 @@ const TableToolbar: React.FC<TableToolbarProps> = ({ children, searchPlaceholder
         <Input
           placeholder={searchPlaceholder}
           value={value}
-          onChange={(e) => onChange?.(e.target.value)}
+          onChange={(e) => {
+            // Normalizamos el valor de búsqueda antes de pasarlo al manejador
+            const normalizedValue = normalizeSearchText(e.target.value);
+            onChange?.(normalizedValue);
+          }}
           className="pl-8 w-full"
         />
       </div>

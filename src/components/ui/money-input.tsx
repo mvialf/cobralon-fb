@@ -69,7 +69,7 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
       <NumericFormat
         customInput={Input}
         getInputRef={ref}
-        className={cn("pl-8 text-right", className)}
+        className={cn("text-right", className)}
         thousandSeparator={groupSeparator}
         decimalSeparator={decimalSeparator}
         decimalScale={decimalScale}

@@ -9,6 +9,7 @@ export interface EventType {
   type: 'Proyecto' | 'Postventa' | 'Visita'; // Tipo de evento obligatorio
   referenceId: string; // ID del proyecto, postventa o visita relacionada
   status?: string; // Estado actual del evento (obtenido del registro referenciado)
+  location?: string; // Ubicación del evento
 }
 
 export type ViewOption = 'month' | 'week' | 'day';

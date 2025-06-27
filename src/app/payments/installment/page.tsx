@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,12 +10,20 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { 
-  getAllPayments, 
-  getCurrentMonthInstallmentSum, 
-  getTotalPendingInstallmentSum 
+import {
+  getAllPayments,
+  getCurrentMonthInstallmentSum,
+  getTotalPendingInstallmentSum,
+  generateInstallments,
 } from '@/services/paymentService';
 import { getProjects } from '@/services/projectService';
 import { getClients } from '@/services/clientService';
@@ -23,6 +31,7 @@ import type { Payment } from '@/types/payment';
 import type { ProjectType } from '@/types/project';
 import type { Client } from '@/types/client';
 import { cn } from '@/lib/utils';
+import { normalizeSearchText } from '@/utils/search-utils';
 
 // Función para formatear moneda
 const formatCurrency = (amount: number | undefined | null) => {
@@ -30,25 +39,39 @@ const formatCurrency = (amount: number | undefined | null) => {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
 };
 
-interface InstallmentPayment extends Omit<Payment, 'installmentNumber' | 'installments'> {
+// Interfaz para las cuotas generadas, extendiendo los datos que vienen del servicio
+interface InstallmentPayment extends Payment {
   projectNumber: string;
   clientName: string;
   installmentNumber: number;
-  installments: number;
+  totalInstallments: number;
+  installments: number; // Para compatibilidad con el código existente
+  isPaid: boolean; // Campo que indica si la cuota está pagada
   projectId: string;
   amount: number;
   date: Date;
   paymentMethod: string;
+  originalPaymentId?: string; // Referencia al ID del pago original
 }
 
 // Skeleton para las filas de la tabla
 const PaymentRowSkeleton = () => (
   <TableRow>
-    <TableCell><div className="h-5 w-24 bg-muted rounded animate-pulse"></div></TableCell>
-    <TableCell><div className="h-5 w-32 bg-muted rounded animate-pulse"></div></TableCell>
-    <TableCell><div className="h-5 w-24 bg-muted rounded animate-pulse"></div></TableCell>
-    <TableCell><div className="h-5 w-16 bg-muted rounded animate-pulse"></div></TableCell>
-    <TableCell className="text-right"><div className="h-5 w-20 bg-muted rounded animate-pulse ml-auto"></div></TableCell>
+    <TableCell>
+      <div className='h-5 w-24 bg-muted rounded animate-pulse'></div>
+    </TableCell>
+    <TableCell>
+      <div className='h-5 w-32 bg-muted rounded animate-pulse'></div>
+    </TableCell>
+    <TableCell>
+      <div className='h-5 w-24 bg-muted rounded animate-pulse'></div>
+    </TableCell>
+    <TableCell>
+      <div className='h-5 w-16 bg-muted rounded animate-pulse'></div>
+    </TableCell>
+    <TableCell className='text-right'>
+      <div className='h-5 w-20 bg-muted rounded animate-pulse ml-auto'></div>
+    </TableCell>
   </TableRow>
 );
 
@@ -59,19 +82,19 @@ export default function InstallmentPaymentsPage() {
   today.setHours(0, 0, 0, 0);
 
   // Obtener totales
-  const { 
-    data: currentMonthTotal, 
+  const {
+    data: currentMonthTotal,
     isLoading: isLoadingCurrentMonth,
-    error: currentMonthError 
+    error: currentMonthError,
   } = useQuery<number>({
     queryKey: ['currentMonthInstallmentTotal'],
     queryFn: getCurrentMonthInstallmentSum,
   });
 
-  const { 
-    data: pendingTotal, 
+  const {
+    data: pendingTotal,
     isLoading: isLoadingPending,
-    error: pendingError 
+    error: pendingError,
   } = useQuery<number>({
     queryKey: ['pendingInstallmentTotal'],
     queryFn: getTotalPendingInstallmentSum,
@@ -79,7 +102,7 @@ export default function InstallmentPaymentsPage() {
 
   // Mostrar loading si alguna consulta está cargando
   const isLoadingTotals = isLoadingCurrentMonth || isLoadingPending;
-  
+
   // Manejar errores
   React.useEffect(() => {
     if (currentMonthError) {
@@ -95,10 +118,10 @@ export default function InstallmentPaymentsPage() {
   }, [currentMonthError, pendingError, queryClient]);
 
   // Obtener pagos
-  const { 
-    data: payments = [], 
-    isLoading: isLoadingPayments, 
-    error: paymentsError 
+  const {
+    data: payments = [],
+    isLoading: isLoadingPayments,
+    error: paymentsError,
   } = useQuery<Payment[]>({
     queryKey: ['payments'],
     queryFn: async () => {
@@ -110,27 +133,27 @@ export default function InstallmentPaymentsPage() {
         console.error('Error obteniendo pagos:', error);
         throw error;
       }
-    }
+    },
   });
 
   // Obtener proyectos
-  const { 
-    data: projects = [], 
-    isLoading: isLoadingProjects, 
-    error: projectsError 
+  const {
+    data: projects = [],
+    isLoading: isLoadingProjects,
+    error: projectsError,
   } = useQuery<ProjectType[]>({
     queryKey: ['projects'],
-    queryFn: () => getProjects()
+    queryFn: () => getProjects(),
   });
 
   // Obtener clientes
-  const { 
-    data: clients = [], 
-    isLoading: isLoadingClients, 
-    error: clientsError 
+  const {
+    data: clients = [],
+    isLoading: isLoadingClients,
+    error: clientsError,
   } = useQuery<Client[]>({
     queryKey: ['clients'],
-    queryFn: () => getClients()
+    queryFn: () => getClients(),
   });
 
   // Mostrar errores en consola
@@ -140,7 +163,7 @@ export default function InstallmentPaymentsPage() {
     if (clientsError) console.error('Error cargando clientes:', clientsError);
   }, [paymentsError, projectsError, clientsError]);
 
-  // Procesar y filtrar cuotas
+  // Procesar y filtrar cuotas utilizando la función generateInstallments del servicio
   const installmentPayments = useMemo<InstallmentPayment[]>(() => {
     if (isLoadingPayments || isLoadingProjects || isLoadingClients) return [];
 
@@ -159,54 +182,43 @@ export default function InstallmentPaymentsPage() {
       payments.forEach((payment) => {
         try {
           console.log(`\nProcesando pago ${payment.id}:`);
-          console.log('- Fecha pago:', payment.date);
-          console.log('- Cuotas totales:', payment.installments);
           
           // Verificar si es un pago a cuotas
-          const totalInstallments = payment.installments || 1;
-          if (totalInstallments <= 1) {
+          if (!payment.installments || payment.installments <= 1) {
             console.log('  - No es pago a cuotas, saltando...');
-            return;
-          }
-          
-          // Verificar fecha de pago
-          const paymentDate = payment.date ? new Date(payment.date) : null;
-          if (!paymentDate) {
-            console.log('  - Pago sin fecha válida, saltando...');
             return;
           }
           
           // Obtener información del proyecto y cliente
           const project = projectMap.get(payment.projectId);
           const client = project ? clientMap.get(project.clientId) : null;
+          const projectNumber = project?.projectNumber || 'N/A';
+          const clientName = client?.name || 'Cliente no encontrado';
           
-          // Calcular monto por cuota
-          const amountPerInstallment = payment.amount ? payment.amount / totalInstallments : 0;
+          // Utilizar la función generateInstallments del servicio
+          const installments = generateInstallments(payment);
+          console.log(`  - Generadas ${installments.length} cuotas con generateInstallments`);
           
-          // Generar cada cuota
-          for (let i = 0; i < totalInstallments; i++) {
-            const installmentDate = new Date(paymentDate);
-            installmentDate.setMonth(installmentDate.getMonth() + i);
+          // Filtrar solo las cuotas futuras y mapearlas al formato requerido
+          const futureInstallments = installments
+            .filter(installment => new Date(installment.date) >= today)
+            .map(installment => ({
+              ...payment,
+              id: `${payment.id}_cuota_${installment.installmentNumber}`,
+              originalPaymentId: payment.id,
+              date: new Date(installment.date),
+              amount: installment.amount,
+              projectNumber,
+              clientName,
+              installmentNumber: installment.installmentNumber,
+              isPaid: installment.isPaid,
+              totalInstallments: installment.totalInstallments,
+              installments: installment.totalInstallments // Para compatibilidad con el código existente
+            } as InstallmentPayment));
             
-            // Solo agregar cuotas futuras
-            if (installmentDate >= today) {
-              const installmentNumber = i + 1;
-              console.log(`  - Cuota ${installmentNumber}/${totalInstallments} para ${installmentDate.toISOString()}`);
-              
-              result.push({
-                ...payment,
-                id: `${payment.id}_cuota_${installmentNumber}`,
-                date: installmentDate,
-                amount: amountPerInstallment,
-                projectNumber: project?.projectNumber || 'N/A',
-                clientName: client?.name || 'Cliente no encontrado',
-                installmentNumber,
-                installments: totalInstallments,
-                projectId: payment.projectId,
-                paymentMethod: payment.paymentMethod || 'No especificado'
-              } as InstallmentPayment);
-            }
-          }
+          result.push(...futureInstallments);
+          console.log(`  - Se agregaron ${futureInstallments.length} cuotas futuras al resultado`);
+          
         } catch (error) {
           console.error(`Error procesando pago ${payment.id}:`, error);
         }
@@ -214,15 +226,6 @@ export default function InstallmentPaymentsPage() {
       
       console.log('\n=== RESUMEN ===');
       console.log(`Total de cuotas futuras generadas: ${result.length}`);
-      console.log('Cuotas generadas:', result.map(p => ({
-        id: p.id,
-        projectNumber: p.projectNumber,
-        clientName: p.clientName,
-        date: p.date,
-        installmentNumber: p.installmentNumber,
-        installments: p.installments,
-        amount: p.amount
-      })));
       
       // Ordenar por fecha
       return result.sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -230,27 +233,42 @@ export default function InstallmentPaymentsPage() {
       console.error('Error procesando cuotas:', error);
       return [];
     }
-  }, [payments, projects, clients, isLoadingPayments, isLoadingProjects, isLoadingClients]);
+  }, [payments, projects, clients, isLoadingPayments, isLoadingProjects, isLoadingClients, today]);
 
-  const filteredInstallments = useMemo(() => {
+  const filteredInstallmentPayments = useMemo(() => {
     if (!filterText) return installmentPayments;
-    
-    const searchLower = filterText.toLowerCase();
-    return installmentPayments.filter(payment => 
-      payment.projectNumber?.toLowerCase().includes(searchLower) ||
-      payment.clientName?.toLowerCase().includes(searchLower) ||
-      payment.paymentMethod?.toLowerCase().includes(searchLower)
-    );
+
+    const searchTerm = normalizeSearchText(filterText);
+    return installmentPayments.filter((payment: InstallmentPayment) => {
+      const projectNumber = payment.projectNumber ? normalizeSearchText(payment.projectNumber) : '';
+      const clientName = payment.clientName ? normalizeSearchText(payment.clientName) : '';
+      const paymentMethod = payment.paymentMethod ? normalizeSearchText(payment.paymentMethod) : '';
+
+      return (
+        projectNumber.includes(searchTerm) ||
+        clientName.includes(searchTerm) ||
+        paymentMethod.includes(searchTerm)
+      );
+    });
   }, [installmentPayments, filterText]);
 
+  const totalInstallments = useMemo(() => {
+    return filteredInstallmentPayments.length;
+  }, [filteredInstallmentPayments]);
+
+  const totalAmount = useMemo(() => {
+    return filteredInstallmentPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+  }, [filteredInstallmentPayments]);
+
   const isLoading = isLoadingPayments || isLoadingProjects || isLoadingClients || isLoadingTotals;
-  const hasError = paymentsError || projectsError || clientsError || currentMonthError || pendingError;
+  const hasError =
+    paymentsError || projectsError || clientsError || currentMonthError || pendingError;
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-full p-4 md:p-6 lg:p-8">
-        <div className="flex items-center space-x-2">
-          <Loader2 className="h-6 w-6 animate-spin" />
+      <div className='flex flex-col h-full p-4 md:p-6 lg:p-8'>
+        <div className='flex items-center space-x-2'>
+          <Loader2 className='h-6 w-6 animate-spin' />
           <span>Cargando datos...</span>
         </div>
       </div>
@@ -259,16 +277,19 @@ export default function InstallmentPaymentsPage() {
 
   if (hasError) {
     return (
-      <div className="flex flex-col h-full p-4 md:p-6 lg:p-8 items-center justify-center text-destructive">
-        <h1 className="text-2xl font-bold mb-2">Error al cargar las cuotas</h1>
-        <p>{(paymentsError || projectsError || clientsError)?.message || "Ha ocurrido un error desconocido."}</p>
-        <Button 
+      <div className='flex flex-col h-full p-4 md:p-6 lg:p-8 items-center justify-center text-destructive'>
+        <h1 className='text-2xl font-bold mb-2'>Error al cargar las cuotas</h1>
+        <p>
+          {(paymentsError || projectsError || clientsError)?.message ||
+            'Ha ocurrido un error desconocido.'}
+        </p>
+        <Button
           onClick={() => {
             if (paymentsError) queryClient.refetchQueries({ queryKey: ['payments'] });
             if (projectsError) queryClient.refetchQueries({ queryKey: ['projects'] });
             if (clientsError) queryClient.refetchQueries({ queryKey: ['clients'] });
-          }} 
-          className="mt-4"
+          }}
+          className='mt-4'
         >
           Intentar de Nuevo
         </Button>
@@ -277,61 +298,61 @@ export default function InstallmentPaymentsPage() {
   }
 
   return (
-    <div className="flex flex-col h-full p-4 md:p-6 lg:p-8">
-      <header className="space-y-4 mb-6 md:mb-8">
-        <div className="flex items-center justify-between gap-4">
+    <div className='flex flex-col h-full p-4 md:p-6 lg:p-8'>
+      <header className='space-y-4 mb-6 md:mb-8'>
+        <div className='flex items-center justify-between gap-4'>
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-primary">Cuotas de Pago</h1>
-            <p className="text-muted-foreground">Próximos vencimientos de cuotas de pago.</p>
+            <h1 className='text-2xl md:text-3xl font-bold text-primary'>Cuotas de Pago</h1>
+            <p className='text-muted-foreground'>Próximos vencimientos de cuotas de pago.</p>
           </div>
-          <Button asChild variant="outline">
-            <Link href="/payments">
-              <DollarSign className="mr-2 h-4 w-4" />
+          <Button asChild variant='outline'>
+            <Link href='/payments'>
+              <DollarSign className='mr-2 h-4 w-4' />
               Ver Pagos
             </Link>
           </Button>
         </div>
-        
+
         {/* Tarjetas de resumen */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
+            <CardContent className='p-4'>
+              <div className='flex items-center justify-between'>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Mes Actual</p>
-                  <div className="min-h-8 flex items-center">
+                  <p className='text-sm font-medium text-muted-foreground'>Total Mes Actual</p>
+                  <div className='min-h-8 flex items-center'>
                     {isLoadingTotals ? (
-                      <div className="h-8 w-24 bg-muted rounded animate-pulse"></div>
+                      <div className='h-8 w-24 bg-muted rounded animate-pulse'></div>
                     ) : (
-                      <p className="text-2xl font-bold">
+                      <p className='text-2xl font-semibold'>
                         {formatCurrency(Number(currentMonthTotal) || 0)}
                       </p>
                     )}
                   </div>
                 </div>
-                <div className="p-3 rounded-full bg-primary/10">
-                  <DollarSign className="h-6 w-6 text-primary" />
+                <div className='p-3 rounded-full bg-primary/10'>
+                  <DollarSign className='h-6 w-6 text-primary' />
                 </div>
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
+          <Card className='w-96'>
+            <CardContent className='p-4'>
+              <div className='flex items-center justify-between'>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Pendiente</p>
-                  <div className="min-h-8 flex items-center">
+                  <p className='text-sm font-medium text-muted-foreground'>Total Pendiente</p>
+                  <div className='min-h-8 flex items-center'>
                     {isLoadingTotals ? (
-                      <div className="h-8 w-24 bg-muted rounded animate-pulse"></div>
+                      <div className='h-8 w-24 bg-muted rounded animate-pulse'></div>
                     ) : (
-                      <p className="text-2xl font-bold">
+                      <p className='text-2xl font-bold'>
                         {formatCurrency(Number(pendingTotal) || 0)}
                       </p>
                     )}
                   </div>
                 </div>
-                <div className="p-3 rounded-full bg-amber-500/10">
-                  <DollarSign className="h-6 w-6 text-amber-500" />
+                <div className='p-3 rounded-full bg-amber-500/10'>
+                  <DollarSign className='h-6 w-6 text-amber-500' />
                 </div>
               </div>
             </CardContent>
@@ -339,22 +360,22 @@ export default function InstallmentPaymentsPage() {
         </div>
       </header>
 
-      <main className="flex-grow">
-        <Card className="shadow-lg">
-          <div className="flex items-center justify-between p-4 border-b">
-            <div className="relative w-full max-w-sm">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <main className='flex-grow'>
+        <Card className='shadow-lg'>
+          <div className='flex items-center justify-between p-4 border-b'>
+            <div className='relative w-full max-w-sm'>
+              <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
               <Input
-                placeholder="Buscar por proyecto, cliente o método de pago..."
+                placeholder='Buscar por proyecto, cliente o método de pago...'
                 value={filterText}
                 onChange={(e) => setFilterText(e.target.value)}
-                className="pl-8"
+                className='pl-8'
                 disabled={isLoading}
               />
             </div>
           </div>
-          
-          <CardContent className="pt-6">
+
+          <CardContent className='pt-6'>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -362,39 +383,45 @@ export default function InstallmentPaymentsPage() {
                   <TableHead>Cliente</TableHead>
                   <TableHead>Vencimiento</TableHead>
                   <TableHead>Cuota</TableHead>
-                  <TableHead className="text-right">Monto</TableHead>
+                  <TableHead className='text-right'>Monto</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   [...Array(5)].map((_, i) => <PaymentRowSkeleton key={i} />)
-                ) : filteredInstallments.length > 0 ? (
-                  filteredInstallments.map((payment) => (
+                ) : filteredInstallmentPayments.length > 0 ? (
+                  filteredInstallmentPayments.map((payment) => (
                     <TableRow key={payment.id}>
                       <TableCell>
-                        <div className="font-medium">{payment.projectNumber}</div>
-                        <div className="text-xs text-muted-foreground flex items-center gap-1">
-                          <FileText className="h-3 w-3" />
+                        <div className='font-medium'>{payment.projectNumber}</div>
+                        <div className='text-xs text-muted-foreground flex items-center gap-1'>
+                          <FileText className='h-3 w-3' />
                           {payment.paymentMethod}
                         </div>
                       </TableCell>
                       <TableCell>{payment.clientName}</TableCell>
                       <TableCell>
-                        <div className="font-medium">{format(payment.date, 'PPP', { locale: es })}</div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className='font-medium'>
+                          {format(payment.date, 'PPP', { locale: es })}
+                        </div>
+                        <div className='text-xs text-muted-foreground'>
                           {format(payment.date, 'EEEE', { locale: es })}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">
-                          {payment.installmentNumber} de {payment.installments}
+                        <Badge 
+                          variant={payment.isPaid ? "secondary" : "outline"}
+                          className={payment.isPaid ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : ""}
+                        >
+                          {payment.installmentNumber} de {payment.totalInstallments}
+                          {payment.isPaid && " (Pagada)"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right font-medium">
-                        <div className="font-mono">{formatCurrency(payment.amount)}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {payment.amount < 1000000 
-                            ? 'Menos de 1M' 
+                      <TableCell className='text-right font-medium'>
+                        <div className='font-mono'>{formatCurrency(payment.amount)}</div>
+                        <div className='text-xs text-muted-foreground'>
+                          {payment.amount < 1000000
+                            ? 'Menos de 1M'
                             : `~${Math.round(payment.amount / 1000000)}M`}
                         </div>
                       </TableCell>
@@ -402,12 +429,12 @@ export default function InstallmentPaymentsPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                        <FileText className="h-8 w-8 opacity-40" />
+                    <TableCell colSpan={5} className='h-24 text-center'>
+                      <div className='flex flex-col items-center justify-center gap-2 text-muted-foreground'>
+                        <FileText className='h-8 w-8 opacity-40' />
                         <p>No se encontraron cuotas pendientes</p>
                         {filterText && (
-                          <Button variant="ghost" size="sm" onClick={() => setFilterText('')}>
+                          <Button variant='ghost' size='sm' onClick={() => setFilterText('')}>
                             Limpiar filtros
                           </Button>
                         )}

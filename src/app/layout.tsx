@@ -1,17 +1,25 @@
-
 // src/app/layout.tsx
-"use client";
+'use client';
 
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Briefcase, CalendarDays, Settings, Users, Loader2, DollarSign, LineChart, Wrench, Home } from 'lucide-react'; // Added LineChart, Wrench, and Home
+import {
+  FolderOpen,
+  CalendarDays,
+  Settings,
+  Users,
+  Loader2,
+  DollarSign,
+  LayoutDashboard,
+  Wrench,
+  Home,
+} from 'lucide-react'; 
 import { useState, useEffect } from 'react';
-import { ThemeProvider } from "next-themes";
-
+import { ThemeProvider } from 'next-themes';
 import './globals.css';
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from '@/components/ui/toaster';
 import { HeaderNav } from '@/components/ui/headernav';
 import {
   SidebarProvider,
@@ -22,10 +30,9 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarInset
+  SidebarInset,
 } from '@/components/ui/sidebar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -60,11 +67,14 @@ export default function RootLayout({
 
   if (!isMounted) {
     return (
-      <html lang="es" suppressHydrationWarning>
-        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
-          <div className="flex flex-col h-screen items-center justify-center bg-background text-foreground">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="mt-4 text-muted-foreground">Cargando aplicación...</p>
+      <html lang='es' suppressHydrationWarning>
+        <body
+          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+          suppressHydrationWarning
+        >
+          <div className='flex flex-col h-screen items-center justify-center bg-background text-foreground'>
+            <Loader2 className='h-12 w-12 animate-spin text-primary' />
+            <p className='mt-4 text-muted-foreground'>Cargando aplicación...</p>
           </div>
         </body>
       </html>
@@ -72,22 +82,25 @@ export default function RootLayout({
   }
 
   return (
-    <html lang="es" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
+    <html lang='es' suppressHydrationWarning>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
+      >
         <QueryClientProvider client={queryClient}>
           <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
+            attribute='class'
+            defaultTheme='system'
             enableSystem
             disableTransitionOnChange
           >
             <HeaderNav />
             <SidebarProvider>
-              <Sidebar collapsible="icon" className="pt-16">
-                <SidebarHeader className="p-4">
-                  <Link href="/" className="flex items-center gap-2" title="CalReact Home">
-                    <CalendarDays className="h-7 w-7 text-primary flex-shrink-0" />
-                    <h2 className="text-2xl font-bold text-primary group-data-[collapsible=icon]:hidden">
+              <Sidebar collapsible='icon' className='pt-16'>
+                <SidebarHeader className='p-4'>
+                  <Link href='/' className='flex items-center gap-2' title='CalReact Home'>
+                    <CalendarDays className='h-7 w-7 text-primary flex-shrink-0' />
+                    <h2 className='text-2xl font-bold text-primary group-data-[collapsible=icon]:hidden'>
                       CalReact
                     </h2>
                   </Link>
@@ -98,11 +111,11 @@ export default function RootLayout({
                       <SidebarMenuButton
                         asChild
                         isActive={pathname === '/dashboard' || pathname === '/'}
-                        tooltip={{children: "Dashboard", side:"right"}}
+                        tooltip={{ children: 'Dashboard', side: 'right' }}
                       >
-                        <Link href="/dashboard">
-                          <LineChart />
-                          <span>Dashboard</span>
+                        <Link href='/dashboard'>
+                          <LayoutDashboard />
+                          <span>Panel Principal</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -110,10 +123,10 @@ export default function RootLayout({
                       <SidebarMenuButton
                         asChild
                         isActive={pathname === '/projects' || pathname?.startsWith('/projects/')}
-                        tooltip={{children: "Proyectos", side:"right"}}
+                        tooltip={{ children: 'Proyectos', side: 'right' }}
                       >
-                        <Link href="/projects">
-                          <Briefcase />
+                        <Link href='/projects'>
+                          <FolderOpen />
                           <span>Proyectos</span>
                         </Link>
                       </SidebarMenuButton>
@@ -122,9 +135,9 @@ export default function RootLayout({
                       <SidebarMenuButton
                         asChild
                         isActive={pathname === '/calendar'}
-                        tooltip={{children: "Calendario", side:"right"}}
+                        tooltip={{ children: 'Calendario', side: 'right' }}
                       >
-                        <Link href="/calendar">
+                        <Link href='/calendar'>
                           <CalendarDays />
                           <span>Calendario</span>
                         </Link>
@@ -133,10 +146,12 @@ export default function RootLayout({
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
-                        isActive={pathname === '/aftersales' || pathname?.startsWith('/aftersales/')}
-                        tooltip={{children: "Postventas", side:"right"}}
+                        isActive={
+                          pathname === '/aftersales' || pathname?.startsWith('/aftersales/')
+                        }
+                        tooltip={{ children: 'Postventas', side: 'right' }}
                       >
-                        <Link href="/aftersales">
+                        <Link href='/aftersales'>
                           <Wrench />
                           <span>Postventas</span>
                         </Link>
@@ -146,9 +161,9 @@ export default function RootLayout({
                       <SidebarMenuButton
                         asChild
                         isActive={pathname === '/visits' || pathname?.startsWith('/visits/')}
-                        tooltip={{children: "Visitas", side:"right"}}
+                        tooltip={{ children: 'Visitas', side: 'right' }}
                       >
-                        <Link href="/visits">
+                        <Link href='/visits'>
                           <Home />
                           <span>Visitas</span>
                         </Link>
@@ -158,9 +173,9 @@ export default function RootLayout({
                       <SidebarMenuButton
                         asChild
                         isActive={pathname === '/payments'}
-                        tooltip={{children: "Pagos", side:"right"}}
+                        tooltip={{ children: 'Pagos', side: 'right' }}
                       >
-                        <Link href="/payments">
+                        <Link href='/payments'>
                           <DollarSign />
                           <span>Pagos</span>
                         </Link>
@@ -170,9 +185,9 @@ export default function RootLayout({
                       <SidebarMenuButton
                         asChild
                         isActive={pathname === '/clients'}
-                        tooltip={{children: "Clientes", side:"right"}}
+                        tooltip={{ children: 'Clientes', side: 'right' }}
                       >
-                        <Link href="/clients">
+                        <Link href='/clients'>
                           <Users />
                           <span>Clientes</span>
                         </Link>
@@ -182,9 +197,9 @@ export default function RootLayout({
                       <SidebarMenuButton
                         asChild
                         isActive={pathname === '/settings'}
-                        tooltip={{children: "Configuración", side:"right"}}
+                        tooltip={{ children: 'Configuración', side: 'right' }}
                       >
-                        <Link href="/settings">
+                        <Link href='/settings'>
                           <Settings />
                           <span>Configuración</span>
                         </Link>
@@ -192,16 +207,14 @@ export default function RootLayout({
                     </SidebarMenuItem>
                   </SidebarMenu>
                 </SidebarContent>
-                <SidebarFooter className="p-4 mt-auto">
-                  <p className="text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+                <SidebarFooter className='p-4 mt-auto'>
+                  <p className='text-xs text-muted-foreground group-data-[collapsible=icon]:hidden'>
                     © 2024 CalReact App
                   </p>
                 </SidebarFooter>
               </Sidebar>
 
-              <SidebarInset className="pt-16">
-                {children}
-              </SidebarInset>
+              <SidebarInset className='pt-16'>{children}</SidebarInset>
             </SidebarProvider>
             <Toaster />
           </ThemeProvider>
