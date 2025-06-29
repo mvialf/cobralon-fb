@@ -535,7 +535,7 @@ export function ProjectForm({
             control={form.control}
             name='fullAddress'
             render={({ field }) => (
-              <FormItem className='w-96 md:col-span-2'>
+              <FormItem className='w-full md:col-span-2'>
                 <FormLabel>Dirección *</FormLabel>
                 <FormControl>
                   <div className='space-y-1'>
@@ -586,7 +586,7 @@ export function ProjectForm({
             control={form.control}
             name='description'
             render={({ field }) => (
-              <FormItem className='w-96 md:col-span-2'>
+              <FormItem className='w-full md:col-span-2'>
                 <FormLabel>Descripción</FormLabel>
                 <FormControl>
                   <Textarea placeholder='Descripción detallada del proyecto...' {...field} />

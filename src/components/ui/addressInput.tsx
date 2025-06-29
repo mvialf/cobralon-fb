@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { X, Copy, Link } from 'lucide-react';
+import { X, Copy, Link, CircleX } from 'lucide-react';
 import { Button } from './button';
 import { useGoogleMaps } from '@/hooks/useGoogleMaps';
 import { Loader2 } from 'lucide-react';
@@ -35,6 +35,7 @@ export interface FormattedAddress {
     region?: string;
     pais?: string;
     codigoPostal?: string;
+    departamento?: string; // Nuevo campo para departamento
   };
 }
 
@@ -104,6 +105,9 @@ export const AddressInput = React.forwardRef<HTMLInputElement, AddressInputProps
       lng: number;
     } | null>(null);
     const [formattedAddress, setFormattedAddress] = useState<string>('');
+    const [departamento, setDepartamento] = useState<string>(
+      (value && typeof value === 'object' && value.componentes?.departamento) || ''
+    );
     const [isCopied, setIsCopied] = useState<boolean>(false);
     const [isLinkCopied, setIsLinkCopied] = useState<boolean>(false);
     const [isError, setIsError] = useState<boolean>(false);
@@ -182,7 +186,9 @@ export const AddressInput = React.forwardRef<HTMLInputElement, AddressInputProps
         onPlaceSelected({
           textoCompleto: '',
           coordenadas: { latitude: 0, longitude: 0 },
-          componentes: {},
+          componentes: {
+            departamento,
+          },
         });
       }
 
@@ -251,6 +257,7 @@ export const AddressInput = React.forwardRef<HTMLInputElement, AddressInputProps
                 region: getAddressComponent(addressComponents, 'administrative_area_level_1'),
                 pais: getAddressComponent(addressComponents, 'country'),
                 codigoPostal: getAddressComponent(addressComponents, 'postal_code'),
+                departamento: departamento || '',
               };
 
               const formattedAddress = place.formatted_address || description;
@@ -279,14 +286,8 @@ export const AddressInput = React.forwardRef<HTMLInputElement, AddressInputProps
               // Mostrar el mapa
               setShowMap(true);
             } else {
-              // Si hay un error, notificar con los datos disponibles
-              if (onPlaceSelected) {
-                onPlaceSelected({
-                  textoCompleto: description,
-                  coordenadas: { latitude: 0, longitude: 0 },
-                  componentes: {},
-                });
-              }
+              setPredictions([]);
+              setShowPredictions(false);
             }
             setIsSearching(false);
           }
@@ -368,47 +369,74 @@ export const AddressInput = React.forwardRef<HTMLInputElement, AddressInputProps
     // Renderizado del componente
     return (
       <div className={cn('grid w-full items-center gap-1.5 relative', className)}>
-        {label && <Label htmlFor={inputId}>{label}</Label>}
-        <div className='relative'>
-          <Input
-            id={inputId}
-            ref={(node) => {
-              inputRef.current = node;
-              if (forwardedRef) {
-                if (typeof forwardedRef === 'function') {
-                  forwardedRef(node);
-                } else {
-                  forwardedRef.current = node;
+        {label && (
+          <Label htmlFor={inputId}>
+            {label}
+          </Label>
+        )}
+        <div className='relative flex gap-2'>
+          <div className='flex-1'>
+            <Input
+              id={inputId}
+              ref={(node) => {
+                inputRef.current = node;
+                if (forwardedRef) {
+                  if (typeof forwardedRef === 'function') {
+                    forwardedRef(node);
+                  } else {
+                    forwardedRef.current = node;
+                  }
                 }
-              }
-            }}
-            value={inputValue}
-            onChange={handleInputChange}
-            onFocus={() => {
-              setIsInputFocused(true);
-              if (inputValue.length >= 3 && predictions.length > 0) {
-                setShowPredictions(true);
-              }
-            }}
-            onBlur={() => {
-              setTimeout(() => setIsInputFocused(false), 200);
-            }}
-            placeholder={placeholder || 'Buscar dirección...'}
-            className={cn('pr-10 w-full', className)}
-            disabled={props.disabled}
-            required={props.required}
-            name={props.name}
-            autoComplete={props.autoComplete}
-          />
+              }}
+              value={inputValue}
+              onChange={handleInputChange}
+              onFocus={() => {
+                setIsInputFocused(true);
+                if (inputValue.length >= 3 && predictions.length > 0) {
+                  setShowPredictions(true);
+                }
+              }}
+              onBlur={() => {
+                setTimeout(() => setIsInputFocused(false), 200);
+              }}
+              placeholder={placeholder || 'Buscar dirección...'}
+              className={cn('w-full', className)}
+              disabled={props.disabled}
+              required={props.required}
+              name={props.name}
+              autoComplete={props.autoComplete}
+            />
+          </div>
+          <div className='w-24'>
+            <Input
+              type='text'
+              placeholder='Depto'
+              value={departamento}
+              onChange={(e) => {
+                const newDepto = e.target.value;
+                setDepartamento(newDepto);
+                if (onPlaceSelected && value && typeof value === 'object') {
+                  onPlaceSelected({
+                    ...value,
+                    componentes: {
+                      ...value.componentes,
+                      departamento: newDepto,
+                    },
+                  });
+                }
+              }}
+              className='w-full'
+            />
+          </div>
           {inputValue && (
             <Button
               type='button'
               variant='ghost'
               size='sm'
-              className='absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 p-0 text-muted-foreground hover:text-foreground'
+              className='h-8 w-8 p-0 text-primary hover:text-primary/80 transition-colors'
               onClick={handleClear}
             >
-              <X className='h-4 w-4' />
+              <CircleX className='h-5 w-5' />
               <span className='sr-only'>Limpiar dirección</span>
             </Button>
           )}

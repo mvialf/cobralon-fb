@@ -12,10 +12,16 @@ import {
   Timestamp,
   serverTimestamp,
   getDoc,
-  setDoc
+  setDoc,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import type { ProjectType, ProjectDocument, ProjectImportData, FormattedAddress } from '@/types/project';
+import type {
+  ProjectType,
+  ProjectDocument,
+  ProjectImportData,
+  FormattedAddress,
+} from '@/types/project';
 import { deletePaymentsForProject } from './paymentService';
 import { deleteAfterSalesForProject } from './afterSalesService';
 
@@ -23,7 +29,7 @@ const PROJECTS_COLLECTION = 'projects';
 
 const projectFromDoc = (docSnapshot: any): ProjectType => {
   const data = docSnapshot.data() as ProjectDocument;
-  
+
   // Reconstruir fullAddress a partir de los campos legados si existe
   let fullAddress: FormattedAddress | undefined;
   if (data.fullAddress) {
@@ -37,10 +43,12 @@ const projectFromDoc = (docSnapshot: any): ProjectType => {
       componentes: {
         comuna: data.commune || '',
         region: data.region || '',
-        pais: 'Chile'
-      }
+        pais: 'Chile',
+      },
     };
   }
+
+  const balance = data.balance || 0;
 
   return {
     id: docSnapshot.id,
@@ -48,8 +56,10 @@ const projectFromDoc = (docSnapshot: any): ProjectType => {
     date: data.date.toDate(), // Should always exist
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
     updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(),
-    isPaid: data.isPaid === undefined ? false : data.isPaid, // Default to false if not set
+    // Si el balance es <= 0, forzar isPaid a true, de lo contrario usar el valor guardado (o false si no existe)
+    isPaid: balance <= 0 ? true : (data.isPaid ?? false),
     fullAddress: fullAddress,
+    balance: balance, // Asegurar que balance sea un número
   } as ProjectType;
 };
 
@@ -61,40 +71,43 @@ const projectFromDoc = (docSnapshot: any): ProjectType => {
 export const getProjects = async (clientId?: string): Promise<ProjectType[]> => {
   const projectsCollectionRef = collection(db, PROJECTS_COLLECTION);
   let q;
-  
+
   // Crear la consulta base
   if (clientId) {
     q = query(projectsCollectionRef, where('clientId', '==', clientId));
   } else {
     q = query(projectsCollectionRef);
   }
-  
+
   // Obtener los proyectos
   const querySnapshot = await getDocs(q);
   let projects = querySnapshot.docs.map(projectFromDoc);
-  
+
   // Obtener información de clientes para los proyectos
-  const clientIds = [...new Set(projects.map(p => p.clientId))];
-  const clientsPromises = clientIds.map(clientId => 
+  const clientIds = [...new Set(projects.map((p) => p.clientId))];
+  const clientsPromises = clientIds.map((clientId) =>
     getDoc(doc(db, 'clients', clientId)).catch(() => null)
   );
   const clientsSnapshots = await Promise.all(clientsPromises);
-  
+
   // Crear un mapa de clientes para búsqueda rápida
-  const clientsMap = clientsSnapshots.reduce((acc, clientDoc) => {
-    if (clientDoc?.exists()) {
-      const clientData = clientDoc.data();
-      acc[clientDoc.id] = clientData?.name || 'Cliente no encontrado';
-    }
-    return acc;
-  }, {} as Record<string, string>);
-  
+  const clientsMap = clientsSnapshots.reduce(
+    (acc, clientDoc) => {
+      if (clientDoc?.exists()) {
+        const clientData = clientDoc.data();
+        acc[clientDoc.id] = clientData?.name || 'Cliente no encontrado';
+      }
+      return acc;
+    },
+    {} as Record<string, string>
+  );
+
   // Enriquecer los proyectos con la información del cliente
-  projects = projects.map(project => ({
+  projects = projects.map((project) => ({
     ...project,
-    clientName: clientsMap[project.clientId] || 'Cliente no encontrado'
+    clientName: clientsMap[project.clientId] || 'Cliente no encontrado',
   }));
-  
+
   // Ordenar los proyectos por fecha descendente
   return projects.sort((a, b) => b.date.getTime() - a.date.getTime());
 };
@@ -108,16 +121,23 @@ export const getProjectById = async (projectId: string): Promise<ProjectType | n
   return null;
 };
 
-export const addProject = async (projectData: ProjectImportData | Omit<ProjectType, 'id' | 'updatedAt' | 'total' | 'balance'>): Promise<ProjectType> => {
+export const addProject = async (
+  projectData: ProjectImportData | Omit<ProjectType, 'id' | 'updatedAt' | 'total' | 'balance'>
+): Promise<ProjectType> => {
   const projectsCollectionRef = collection(db, PROJECTS_COLLECTION);
 
   let createdAtTimestamp: Timestamp;
   // Verificar si createdAt existe en los datos antes de intentar acceder
   if ('createdAt' in projectData && projectData.createdAt) {
     try {
-      const date = typeof projectData.createdAt === 'string' ? new Date(projectData.createdAt) : projectData.createdAt;
+      const date =
+        typeof projectData.createdAt === 'string'
+          ? new Date(projectData.createdAt)
+          : projectData.createdAt;
       if (date instanceof Date && isNaN(date.getTime())) {
-        console.warn(`Invalid createdAt date provided for project ${projectData.projectNumber}. Using server timestamp.`);
+        console.warn(
+          `Invalid createdAt date provided for project ${projectData.projectNumber}. Using server timestamp.`
+        );
         createdAtTimestamp = serverTimestamp() as Timestamp;
       } else if (date instanceof Date) {
         createdAtTimestamp = Timestamp.fromDate(date);
@@ -125,7 +145,10 @@ export const addProject = async (projectData: ProjectImportData | Omit<ProjectTy
         createdAtTimestamp = serverTimestamp() as Timestamp;
       }
     } catch (e) {
-      console.warn(`Error parsing createdAt date for project ${projectData.projectNumber}. Using server timestamp.`, e);
+      console.warn(
+        `Error parsing createdAt date for project ${projectData.projectNumber}. Using server timestamp.`,
+        e
+      );
       createdAtTimestamp = serverTimestamp() as Timestamp;
     }
   } else {
@@ -135,30 +158,35 @@ export const addProject = async (projectData: ProjectImportData | Omit<ProjectTy
   const subtotal = Number(projectData.subtotal) || 0;
   const taxRate = Number(projectData.taxRate) || 0;
   const total = subtotal * (1 + taxRate / 100);
-  const balance = total; 
+  const balance = total;
 
   const { ...restOfProjectData } = projectData as any;
-
 
   const dataToSave: Omit<ProjectDocument, 'id'> = {
     projectNumber: restOfProjectData.projectNumber,
     clientId: restOfProjectData.clientId,
     description: restOfProjectData.description || '',
-    date: restOfProjectData.date instanceof Date ? Timestamp.fromDate(restOfProjectData.date) : Timestamp.fromDate(new Date(restOfProjectData.date as string)),
+    date:
+      restOfProjectData.date instanceof Date
+        ? Timestamp.fromDate(restOfProjectData.date)
+        : Timestamp.fromDate(new Date(restOfProjectData.date as string)),
     subtotal: subtotal,
     taxRate: taxRate,
     total: total,
     balance: balance,
     status: restOfProjectData.status,
     collect: restOfProjectData.collect === undefined ? false : restOfProjectData.collect, // Default to false
-    isPaid: restOfProjectData.isPaid === undefined ? false : restOfProjectData.isPaid, // Default to false
+    // Si el balance es <= 0, marcar como pagado, de lo contrario usar el valor proporcionado (o false por defecto)
+    isPaid: balance <= 0 ? true : (restOfProjectData.isPaid ?? false),
     createdAt: createdAtTimestamp,
     updatedAt: serverTimestamp() as Timestamp,
     phone: restOfProjectData.phone || '',
     windowsCount: Number(restOfProjectData.windowsCount) || 0,
     squareMeters: Number(restOfProjectData.squareMeters) || 0,
     uninstall: restOfProjectData.uninstall || false,
-    uninstallTypes: Array.isArray(restOfProjectData.uninstallTypes) ? restOfProjectData.uninstallTypes : [],
+    uninstallTypes: Array.isArray(restOfProjectData.uninstallTypes)
+      ? restOfProjectData.uninstallTypes
+      : [],
     uninstallOther: restOfProjectData.uninstallOther || '',
     glosa: restOfProjectData.glosa || '',
     isHidden: restOfProjectData.isHidden || false,
@@ -189,68 +217,80 @@ export const addProject = async (projectData: ProjectImportData | Omit<ProjectTy
   return projectFromDoc(newDocSnap);
 };
 
-
-export const updateProject = async (projectId: string, projectData: Partial<Omit<ProjectType, 'id' | 'updatedAt'>>): Promise<void> => {
+export const updateProject = async (
+  projectId: string,
+  projectData: Partial<Omit<ProjectType, 'id' | 'updatedAt'>>
+): Promise<void> => {
   const projectDocRef = doc(db, PROJECTS_COLLECTION, projectId);
-  
+
   const dataToUpdate: Partial<ProjectDocument> = {};
 
   // Explicitly map fields to ensure correct types and only update what's provided
-  if (projectData.hasOwnProperty('projectNumber')) dataToUpdate.projectNumber = projectData.projectNumber;
+  if (projectData.hasOwnProperty('projectNumber'))
+    dataToUpdate.projectNumber = projectData.projectNumber;
   if (projectData.hasOwnProperty('clientId')) dataToUpdate.clientId = projectData.clientId;
   if (projectData.hasOwnProperty('description')) dataToUpdate.description = projectData.description;
-  
+
   if (projectData.date) {
-     try {
-        // Ensure date is converted to Timestamp if it's not already one
-        if (
-          typeof projectData.date === 'object' && projectData.date instanceof Date || 
-          typeof projectData.date === 'string' || 
-          typeof projectData.date === 'number'
-        ) {
-            dataToUpdate.date = Timestamp.fromDate(new Date(projectData.date));
-        } else if (
-          typeof projectData.date === 'object' && 
-          'seconds' in projectData.date && 
-          'nanoseconds' in projectData.date
-        ) {
-            dataToUpdate.date = projectData.date as Timestamp; // It's likely a Timestamp
-        }
+    try {
+      // Ensure date is converted to Timestamp if it's not already one
+      if (
+        (typeof projectData.date === 'object' && projectData.date instanceof Date) ||
+        typeof projectData.date === 'string' ||
+        typeof projectData.date === 'number'
+      ) {
+        dataToUpdate.date = Timestamp.fromDate(new Date(projectData.date));
+      } else if (
+        typeof projectData.date === 'object' &&
+        'seconds' in projectData.date &&
+        'nanoseconds' in projectData.date
+      ) {
+        dataToUpdate.date = projectData.date as Timestamp; // It's likely a Timestamp
+      }
     } catch (e) {
-        console.error("Invalid date format for project update:", projectData.date, e);
-        // Decide how to handle: skip date update, or throw error
+      console.error('Invalid date format for project update:', projectData.date, e);
+      // Decide how to handle: skip date update, or throw error
     }
   }
-  
+
   if (projectData.hasOwnProperty('subtotal')) dataToUpdate.subtotal = Number(projectData.subtotal);
   if (projectData.hasOwnProperty('taxRate')) dataToUpdate.taxRate = Number(projectData.taxRate);
-  
+
   // Recalculate total and balance if subtotal or taxRate changes
   if (projectData.hasOwnProperty('subtotal') || projectData.hasOwnProperty('taxRate')) {
     const currentSnap = await getDoc(projectDocRef);
     const currentData = currentSnap.data() as ProjectDocument | undefined;
 
-    const subtotal = dataToUpdate.subtotal !== undefined ? dataToUpdate.subtotal : Number(currentData?.subtotal || 0);
-    const taxRate = dataToUpdate.taxRate !== undefined ? dataToUpdate.taxRate : Number(currentData?.taxRate || 0);
-    
+    const subtotal =
+      dataToUpdate.subtotal !== undefined
+        ? dataToUpdate.subtotal
+        : Number(currentData?.subtotal || 0);
+    const taxRate =
+      dataToUpdate.taxRate !== undefined ? dataToUpdate.taxRate : Number(currentData?.taxRate || 0);
+
     dataToUpdate.total = subtotal * (1 + taxRate / 100);
     // Adjust balance based on the new total and existing payments
     if (currentData) {
-       const paymentsMade = (currentData.total || 0) - (currentData.balance || 0);
-       dataToUpdate.balance = dataToUpdate.total - paymentsMade;
+      const paymentsMade = (currentData.total || 0) - (currentData.balance || 0);
+      dataToUpdate.balance = dataToUpdate.total - paymentsMade;
     } else {
-       dataToUpdate.balance = dataToUpdate.total; // Fallback if currentData is somehow not available
+      dataToUpdate.balance = dataToUpdate.total; // Fallback if currentData is somehow not available
+    }
+
+    // Asegurar que isPaid esté sincronizado con el nuevo balance
+    if (dataToUpdate.balance !== undefined) {
+      dataToUpdate.isPaid = dataToUpdate.balance <= 0;
     }
   }
 
   if (projectData.hasOwnProperty('status')) dataToUpdate.status = projectData.status;
   if (projectData.hasOwnProperty('phone')) dataToUpdate.phone = projectData.phone;
-  
+
   // Manejar la dirección compleja
   if (projectData.hasOwnProperty('fullAddress')) {
     const fullAddress = projectData.fullAddress;
     dataToUpdate.fullAddress = fullAddress;
-    
+
     // Actualizar también los campos legados para mantener compatibilidad
     if (fullAddress) {
       dataToUpdate.address = fullAddress.textoCompleto || '';
@@ -263,25 +303,43 @@ export const updateProject = async (projectId: string, projectData: Partial<Omit
     if (projectData.hasOwnProperty('commune')) dataToUpdate.commune = projectData.commune;
     if (projectData.hasOwnProperty('region')) dataToUpdate.region = projectData.region;
   }
-  
-  if (projectData.hasOwnProperty('windowsCount')) dataToUpdate.windowsCount = Number(projectData.windowsCount);
-  if (projectData.hasOwnProperty('squareMeters')) dataToUpdate.squareMeters = Number(projectData.squareMeters);
+
+  if (projectData.hasOwnProperty('windowsCount'))
+    dataToUpdate.windowsCount = Number(projectData.windowsCount);
+  if (projectData.hasOwnProperty('squareMeters'))
+    dataToUpdate.squareMeters = Number(projectData.squareMeters);
   if (projectData.hasOwnProperty('uninstall')) dataToUpdate.uninstall = projectData.uninstall;
-  if (projectData.hasOwnProperty('uninstallTypes')) dataToUpdate.uninstallTypes = projectData.uninstallTypes;
-  if (projectData.hasOwnProperty('uninstallOther')) dataToUpdate.uninstallOther = projectData.uninstallOther;
+  if (projectData.hasOwnProperty('uninstallTypes'))
+    dataToUpdate.uninstallTypes = projectData.uninstallTypes;
+  if (projectData.hasOwnProperty('uninstallOther'))
+    dataToUpdate.uninstallOther = projectData.uninstallOther;
   if (projectData.hasOwnProperty('glosa')) dataToUpdate.glosa = projectData.glosa;
   if (projectData.hasOwnProperty('collect')) dataToUpdate.collect = projectData.collect;
   if (projectData.hasOwnProperty('isHidden')) dataToUpdate.isHidden = projectData.isHidden;
-  
-  // This is the key part for the switch functionality
-  if (projectData.hasOwnProperty('isPaid')) {
+
+  // Manejar isPaid basado en el balance
+  if (projectData.hasOwnProperty('balance')) {
+    // Si el balance es menor o igual a 0, marcar como pagado
+    if (projectData.balance! <= 0) {
+      dataToUpdate.isPaid = true;
+    } else if (projectData.balance! > 0) {
+      // Si el balance es mayor a 0, asegurarse de que isPaid sea false
+      dataToUpdate.isPaid = false;
+    }
+  } else if (projectData.hasOwnProperty('isPaid')) {
+    // Si se actualiza manualmente isPaid, respetar ese valor
     dataToUpdate.isPaid = projectData.isPaid;
+
+    // Si se está marcando como pagado manualmente, asegurarse de que el balance sea 0
+    if (projectData.isPaid && !projectData.hasOwnProperty('balance')) {
+      dataToUpdate.balance = 0;
+    }
   }
 
   dataToUpdate.updatedAt = serverTimestamp() as Timestamp;
 
   // Only perform update if there are actual changes besides updatedAt
-  const fieldCountToUpdate = Object.keys(dataToUpdate).filter(k => k !== 'updatedAt').length;
+  const fieldCountToUpdate = Object.keys(dataToUpdate).filter((k) => k !== 'updatedAt').length;
   if (fieldCountToUpdate > 0) {
     await updateDoc(projectDocRef, dataToUpdate);
   } else if (projectData.hasOwnProperty('updatedAt') && Object.keys(projectData).length === 1) {
@@ -299,4 +357,31 @@ export const deleteProject = async (projectId: string): Promise<void> => {
 
   const projectDocRef = doc(db, PROJECTS_COLLECTION, projectId);
   await deleteDoc(projectDocRef);
+};
+
+/**
+ * Corrige proyectos que tienen un balance menor o igual a cero pero no están marcados como pagados.
+ * @returns Un objeto con la cantidad de proyectos corregidos.
+ */
+export const correctInconsistentProjects = async (): Promise<{ correctedCount: number }> => {
+  const projectsCollectionRef = collection(db, PROJECTS_COLLECTION);
+
+  // Consulta para encontrar proyectos con balance <= 0 pero isPaid = false
+  const q = query(projectsCollectionRef, where('balance', '<=', 0), where('isPaid', '==', false));
+
+  const querySnapshot = await getDocs(q);
+
+  if (querySnapshot.empty) {
+    return { correctedCount: 0 };
+  }
+
+  const batch = writeBatch(db);
+  querySnapshot.forEach((docSnapshot) => {
+    const projectDocRef = doc(db, PROJECTS_COLLECTION, docSnapshot.id);
+    batch.update(projectDocRef, { isPaid: true, updatedAt: serverTimestamp() });
+  });
+
+  await batch.commit();
+
+  return { correctedCount: querySnapshot.size };
 };

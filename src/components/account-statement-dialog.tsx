@@ -1,6 +1,7 @@
 // src/components/account-statement-dialog.tsx
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
+import { useProjectPayments } from '@/hooks/useProjectPayments';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Copy, CircleDollarSign, Wallet, FileText } from 'lucide-react';
@@ -50,17 +51,11 @@ export default function AccountStatementDialog({
     fetchPayments();
   }, [isOpen, project]);
 
-  // Calcular el total pagado
-  const totalPaid = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
-
-  // Calcular el saldo pendiente
-  const pendingBalance = project ? (project.total || 0) - totalPaid : 0;
-
-  // Calcular el porcentaje de pago
-  const paymentPercentage =
-    project && (project.total || 0) > 0
-      ? Math.min(100, Math.round((totalPaid / (project.total || 0)) * 100))
-      : 0;
+  // Usar el hook personalizado para cálculos de pagos
+  const { totalPaid, pendingBalance, paymentPercentage } = useProjectPayments(
+    payments,
+    project?.total || 0
+  );
 
   // Función para copiar la imagen al portapapeles
   const handleCopy = async () => {
